@@ -100,7 +100,14 @@ async def _generation_task(job_id: str, payload: dict):
         await asyncio.sleep(0.2)
 
         # ── STEP 4: Complete ──────────────────────────────────────────
+        if result.get("status") == "FAILED" or not result.get("output_path"):
+            err_msg = result.get("error", "Video diffusion pipeline failed to generate output.")
+            raise RuntimeError(err_msg)
+
         final_path = result.get("output_path", out_path)
+        if not Path(final_path).exists() or Path(final_path).stat().st_size == 0:
+            raise RuntimeError(f"Output video file is missing or empty at {final_path}")
+
         gen_time = result.get("generation_time_seconds", 0.0)
 
         await _update_job(

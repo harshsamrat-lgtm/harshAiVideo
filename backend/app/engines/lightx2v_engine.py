@@ -228,6 +228,11 @@ class LightX2VEngine(BaseVideoEngine):
             if not torch.cuda.is_available():
                 raise RuntimeError("No CUDA GPU")
 
+            # Ensure model pipeline is loaded
+            if _COGVIDEO_5B_PIPE is None and _COGVIDEO_2B_PIPE is None and _MODELSCOPE_PIPE is None:
+                logger.info("Pipeline not loaded yet, loading model now...")
+                await self.load_model()
+
             generator = torch.Generator("cuda").manual_seed(actual_seed)
 
             # ═══ CogVideoX-5B (PRIMARY — BEST QUALITY) ═══
