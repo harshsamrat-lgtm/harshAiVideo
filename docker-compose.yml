@@ -1,0 +1,113 @@
+version: '3.8'
+
+# ==============================================================================
+# Harsh AI Video Studio - Multi-Environment Docker Compose
+# ==============================================================================
+# Supported Execution Profiles:
+#   1. dev        -> Laptop development (Backend + Frontend + Redis, No GPU)
+#                    Run: docker compose --profile dev up -d
+#   2. remote-gpu -> Rented GPU Server (Backend + Redis + LightX2V GPU Worker)
+#                    Run: docker compose --profile remote-gpu up -d
+#   3. local-gpu  -> Dedicated RTX 5090 Server (Full Stack + Local GPU Worker)
+#                    Run: docker compose --profile local-gpu up -d
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Redis Message Broker & Job Queue
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: harsh-studio-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    profiles: [dev, remote-gpu, local-gpu]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # FastAPI Backend API Server
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: harsh-studio-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite+aiosqlite:////workspace/projects/studio.sqlite3
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./projects:/workspace/projects
+      - ./outputs:/workspace/outputs
+      - ./cache:/workspace/cache
+      - ./models:/workspace/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: [dev, remote-gpu, local-gpu]
+
+  # ----------------------------------------------------------------------------
+  # React / Next.js Web UI
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: harsh-studio-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    profiles: [dev, local-gpu]
+
+  # ----------------------------------------------------------------------------
+  # GPU Worker (LightX2V + Wan 2.2 Inference Engine)
+  # Activated only on GPU Servers (Rented GPU / RTX 5090)
+  # ----------------------------------------------------------------------------
+  gpu-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: harsh-studio-gpu-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_ROOT=/workspace/models
+      - PROJECT_ROOT=/workspace/projects
+      - OUTPUT_ROOT=/workspace/outputs
+      - CACHE_ROOT=/workspace/cache
+    volumes:
+      - ./models:/workspace/models
+      - ./projects:/workspace/projects
+      - ./outputs:/workspace/outputs
+      - ./cache:/workspace/cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: [remote-gpu, local-gpu]
+
+volumes:
+  redis_data:

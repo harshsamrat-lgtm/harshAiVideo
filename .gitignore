@@ -1,0 +1,79 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments & Virtual Envs
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+ENV/
+env/
+
+# AI Models & Large Weights (CRITICAL - DO NOT COMMIT)
+models/*
+!models/.gitkeep
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.gguf
+
+# Media Assets & Generation Outputs (DO NOT COMMIT)
+outputs/*
+!outputs/.gitkeep
+cache/*
+!cache/.gitkeep
+projects/*/outputs/
+projects/*/media/
+projects/*/temp/
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.webm
+*.wav
+*.mp3
+*.flac
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+build/
+dist/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDE & OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+logs/
