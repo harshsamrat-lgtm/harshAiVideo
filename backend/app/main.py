@@ -2,11 +2,18 @@
 Harsh AI Video Studio - FastAPI Application Entry Point.
 """
 from contextlib import asynccontextmanager
+import os
+import sys
+from pathlib import Path
+
+# Ensure backend root is always in Python module search path
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
-import os
-from pathlib import Path
 
 from app.core.config import settings
 from app.core.logging import logger
