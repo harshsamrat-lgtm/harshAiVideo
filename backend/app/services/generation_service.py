@@ -51,8 +51,9 @@ async def _generation_task(job_id: str, payload: dict):
         # ── STEP 1: Loading ──────────────────────────────────────────
         await _update_job(job_id, JobState.LOADING, 8.0, "Engine loading model configuration...")
 
+        selected_engine_name = payload.get("engine") or settings.ENGINE
         from app.engines import get_active_engine
-        engine = get_active_engine()
+        engine = get_active_engine(selected_engine_name)
 
         if not engine.is_loaded:
             logger.info(f"[Task:{job_id}] Loading engine: {engine.name}")
