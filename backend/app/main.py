@@ -90,6 +90,19 @@ async def studio_ui():
 app.include_router(api_router)
 
 
+# Video Output file server - serves generated MP4 clips directly to browser/player
+from fastapi.responses import FileResponse
+from fastapi import HTTPException as FastHTTPException
+
+@app.get("/api/outputs/{filename}", tags=["Outputs"])
+async def serve_output_video(filename: str):
+    """Serve a generated video file for browser playback and download."""
+    output_path = Path(settings.OUTPUT_ROOT) / filename
+    if not output_path.exists():
+        raise FastHTTPException(status_code=404, detail=f"Output video '{filename}' not found.")
+    return FileResponse(str(output_path), media_type="video/mp4", filename=filename)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error on {request.url.path}: {exc}", exc_info=True)
