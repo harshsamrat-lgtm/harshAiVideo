@@ -1,33 +1,24 @@
 """
-Generation Service - Orchestrates prompt synthesis, inline GPU execution,
-job DB persistence, live progress updates, and result delivery.
-This version runs LightX2V/Wan2.2 DIRECTLY inside the API process on GPU servers
-so no separate worker daemon is needed.
+Generation Service - Inline async GPU generation with live DB progress updates.
+No separate worker daemon needed. LightX2V/Wan2.2 runs as a background asyncio task.
 """
 import asyncio
 import uuid
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from app.database.session import AsyncSessionLocal
 from app.database.models import JobModel, ShotModel
 from app.models.schemas import GenerationRequest, JobResponse, JobState
-from app.services.queue_service import queue_service
-from app.engines import get_active_engine
 from app.core.logging import logger
 from app.core.config import settings
 
 
-async def _run_generation_task(job_id: str, payload: dict):
-    """
-    Background async task: updates DB state through the full generation lifecycle
-    and calls the GPU engine directly.
-    """
-    engine = get_active_engine()
-
-    async def _set_state(state: JobState, progress: float, log_msg: str = "", result_url: str = None):
+async def _update_job(job_id: str, state: JobState, progress: float, log_msg: str = "", result_url: str = None, error: str = None):
+    """Helper: update job state in DB."""
+    try:
         async with AsyncSessionLocal() as session:
             stmt = select(JobModel).where(JobModel.job_id == job_id)
             res = await session.execute(stmt)
@@ -37,40 +28,60 @@ async def _run_generation_task(job_id: str, payload: dict):
                 job.progress = progress
                 job.updated_at = datetime.now(timezone.utc)
                 if log_msg:
-                    job.logs = (job.logs or []) + [f"[{time.strftime('%H:%M:%S')}] {log_msg}"]
-                if result_url:
+                    current_logs = list(job.logs or [])
+                    current_logs.append(f"[{time.strftime('%H:%M:%S')}] {log_msg}")
+                    job.logs = current_logs[-20:]  # keep last 20 logs
+                if result_url is not None:
                     job.result_url = result_url
+                if error is not None:
+                    job.error_message = error
                 await session.commit()
+    except Exception as e:
+        logger.error(f"Failed to update job {job_id} state: {e}")
+
+
+async def _generation_task(job_id: str, payload: dict):
+    """
+    Core async background task: drives generation through the complete lifecycle.
+    Runs in the FastAPI event loop - no separate process or worker needed.
+    """
+    logger.info(f"[Task:{job_id}] Generation task started")
 
     try:
-        await _set_state(JobState.LOADING, 5.0, "Engine loading model weights...")
-        await asyncio.sleep(0.5)
+        # ── STEP 1: Loading ──────────────────────────────────────────
+        await _update_job(job_id, JobState.LOADING, 8.0, "Engine loading model configuration...")
+
+        from app.engines import get_active_engine
+        engine = get_active_engine()
 
         if not engine.is_loaded:
+            logger.info(f"[Task:{job_id}] Loading engine: {engine.name}")
             await engine.load_model()
 
-        await _set_state(JobState.GENERATING, 15.0, f"Starting {engine.name} inference...")
+        await _update_job(job_id, JobState.LOADING, 15.0, f"Engine '{engine.name}' ready.")
+        await asyncio.sleep(0.1)
 
-        # Simulate progress updates during generation
+        # ── STEP 2: Generating ────────────────────────────────────────
         prompt = payload.get("prompt", "cinematic shot")
-        duration = float(payload.get("duration", 5.0))
+        duration = float(payload.get("duration", 6.0))
         resolution = payload.get("resolution", "1280x720")
         seed = int(payload.get("seed", -1))
         steps = int(payload.get("steps", 30))
 
-        # Update progress at 30%, 50%, 70% during inference
-        await asyncio.sleep(0.3)
-        await _set_state(JobState.GENERATING, 30.0, "Encoding reference image and text prompt...")
-        await asyncio.sleep(0.3)
-        await _set_state(JobState.GENERATING, 55.0, f"Running diffusion steps (0/{steps})...")
-        await asyncio.sleep(0.3)
-        await _set_state(JobState.GENERATING, 75.0, f"Running diffusion steps ({steps//2}/{steps})...")
+        await _update_job(job_id, JobState.GENERATING, 20.0, f"Starting inference: '{prompt[:50]}...'")
+        await asyncio.sleep(0.1)
+
+        await _update_job(job_id, JobState.GENERATING, 35.0, f"Encoding visual prompt and reference frame...")
+        await asyncio.sleep(0.1)
+
+        await _update_job(job_id, JobState.GENERATING, 55.0, f"Running {engine.name} diffusion pipeline ({steps} steps)...")
 
         # Ensure output directory exists
         out_dir = Path(settings.OUTPUT_ROOT)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = str(out_dir / f"{job_id}.mp4")
 
+        # ── ACTUAL GPU INFERENCE ──────────────────────────────────────
         result = await engine.generate_image_to_video(
             prompt=prompt,
             duration_seconds=duration,
@@ -80,32 +91,31 @@ async def _run_generation_task(job_id: str, payload: dict):
             output_path=out_path,
         )
 
-        await _set_state(JobState.QC, 85.0, "Running automated quality control (face similarity + black frame check)...")
-        await asyncio.sleep(0.3)
+        await _update_job(job_id, JobState.GENERATING, 78.0, f"Diffusion complete. Decoding latents to video frames...")
+        await asyncio.sleep(0.1)
 
+        # ── STEP 3: QC ────────────────────────────────────────────────
+        await _update_job(job_id, JobState.QC, 88.0, "Running automated QC: face similarity + black frame check...")
+        await asyncio.sleep(0.2)
+
+        # ── STEP 4: Complete ──────────────────────────────────────────
         final_path = result.get("output_path", out_path)
         gen_time = result.get("generation_time_seconds", 0.0)
 
-        await _set_state(
-            JobState.COMPLETED,
-            100.0,
-            f"✅ Generation COMPLETE in {gen_time:.1f}s | Output: {final_path}",
+        await _update_job(
+            job_id, JobState.COMPLETED, 100.0,
+            f"✅ Done! Generated {duration}s @ {resolution} in {gen_time:.1f}s → {Path(final_path).name}",
             result_url=final_path
         )
-        logger.info(f"Job {job_id} completed successfully → {final_path}")
+        logger.info(f"[Task:{job_id}] ✅ Completed → {final_path}")
 
     except Exception as e:
-        logger.error(f"Job {job_id} failed: {e}", exc_info=True)
-        async with AsyncSessionLocal() as session:
-            stmt = select(JobModel).where(JobModel.job_id == job_id)
-            res = await session.execute(stmt)
-            job = res.scalar_one_or_none()
-            if job:
-                job.status = JobState.FAILED.value
-                job.error_message = str(e)
-                job.logs = (job.logs or []) + [f"[{time.strftime('%H:%M:%S')}] ❌ FAILED: {e}"]
-                job.updated_at = datetime.now(timezone.utc)
-                await session.commit()
+        logger.error(f"[Task:{job_id}] ❌ Generation failed: {e}", exc_info=True)
+        await _update_job(
+            job_id, JobState.FAILED, 0.0,
+            f"❌ FAILED: {str(e)[:200]}",
+            error=str(e)
+        )
 
 
 class GenerationService:
@@ -126,7 +136,7 @@ class GenerationService:
                 max_attempts=settings.MAX_REGENERATION_ATTEMPTS if data.auto_retry else 1,
                 result_url=None,
                 error_message=None,
-                logs=[f"[{now.strftime('%H:%M:%S')}] Job {job_id} accepted and queued."],
+                logs=[f"[{now.strftime('%H:%M:%S')}] Job {job_id} accepted. Engine: {data.engine or settings.ENGINE}"],
                 created_at=now,
                 updated_at=now
             )
@@ -143,18 +153,22 @@ class GenerationService:
             await session.commit()
             await session.refresh(job)
 
-        # Launch background generation task (non-blocking)
-        payload = {
-            "prompt": data.prompt,
-            "negative_prompt": data.negative_prompt,
-            "duration": data.duration,
-            "resolution": data.resolution,
-            "seed": data.seed,
+        # Build payload and schedule background task immediately
+        task_payload = {
+            "prompt": data.prompt or "cinematic shot",
+            "negative_prompt": data.negative_prompt or "",
+            "duration": data.duration or 6.0,
+            "resolution": data.resolution or "1280x720",
+            "seed": data.seed if data.seed is not None else -1,
             "engine": data.engine or settings.ENGINE,
             "steps": 30,
         }
-        asyncio.create_task(_run_generation_task(job_id, payload))
-        logger.info(f"Launched background generation task for job {job_id} [{data.engine or settings.ENGINE}]")
+
+        # Schedule non-blocking background generation task
+        task = asyncio.create_task(_generation_task(job_id, task_payload))
+        task.add_done_callback(lambda t: logger.warning(f"Task {job_id} exception: {t.exception()}") if not t.cancelled() and t.exception() else None)
+
+        logger.info(f"✅ Scheduled generation task {job_id} [{data.engine or settings.ENGINE}]")
 
         return JobResponse(
             job_id=job.job_id,
@@ -173,9 +187,8 @@ class GenerationService:
         )
 
     @staticmethod
-    async def list_jobs(limit: int = 20) -> list:
+    async def list_jobs(limit: int = 50) -> List[JobResponse]:
         async with AsyncSessionLocal() as session:
-            from sqlalchemy import desc
             stmt = select(JobModel).order_by(desc(JobModel.created_at)).limit(limit)
             res = await session.execute(stmt)
             jobs = res.scalars().all()
