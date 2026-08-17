@@ -1,19 +1,14 @@
 """
 Standard Wan 2.2 I2V A14B Video Generation Engine Implementation.
-Generates full 24fps high-definition cinematic video sequences.
 """
 from typing import Dict, Any, Optional
-import os
-import time
-from pathlib import Path
 from app.engines.lightx2v_engine import LightX2VEngine
-from app.core.logging import logger
 from app.core.config import settings
 
 
 class Wan22Engine(LightX2VEngine):
     """
-    Standard Wan 2.2 Image-to-Video Engine (14B parameter checkpoint).
+    Standard Wan 2.2 Image-to-Video Engine.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -28,5 +23,5 @@ class Wan22Engine(LightX2VEngine):
             "checkpoint_dir": self.checkpoint_dir,
             "precision": "bfloat16",
             "accelerator": "standard_cuda",
-            "estimated_vram_peak_gb": 46.0
+            "estimated_vram_peak_gb": 22.0
         }
