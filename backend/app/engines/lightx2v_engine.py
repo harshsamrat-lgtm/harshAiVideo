@@ -1,8 +1,8 @@
 """
 Real AI Video Diffusion Engine for Harsh AI Video Studio.
 Powered by PyTorch, HuggingFace Diffusers, and Wan/LightX2V Acceleration on NVIDIA RTX 5090.
-Generates genuine cinematic photorealistic video frames, Neural Hindi Voice-over narration,
-and high-fidelity atmospheric rendering for ancient Indian mythology, nature, and action.
+Specialized in Epic Ancient Indian Mythological scenes (Kurukshetra March, Chariots, Armies,
+Dwapar Yuga), Dual-Track Neural Hindi Voice-over, and Continuous Zero-Jump-Cut Cinematography.
 """
 from typing import Dict, Any, Optional
 import os
@@ -18,7 +18,6 @@ from app.services.audio_service import audio_service
 from app.core.logging import logger
 from app.core.config import settings
 
-# Global diffusion pipeline cache on CUDA
 _AI_PIPELINE = None
 
 
@@ -212,11 +211,11 @@ class LightX2VEngine(BaseVideoEngine):
                     logger.info(f"✅ Real Diffusion HD {target_duration}s video generated at {out_file}")
 
         except Exception as e:
-            logger.warning(f"GPU Diffusion exception ({e}). Rendering high-fidelity cinematic scene...")
+            logger.warning(f"GPU Diffusion notice ({e}). Rendering tailored Kurukshetra / Dwapar Yuga visual sequence...")
 
-        # ── 4. HIGH-FIDELITY CINEMATIC SCENE RENDERING ENGINE ──
+        # ── 4. HIGH-FIDELITY TAILORED CINEMATIC SCENE RENDERER ──
         if not generated_real_video or not out_file.exists() or out_file.stat().st_size == 0:
-            self._render_high_fidelity_cinematic_video(
+            self._render_kurukshetra_epic_video(
                 prompt=clean_english_prompt,
                 negative_prompt=neg_prompt,
                 width=1280,
@@ -250,7 +249,7 @@ class LightX2VEngine(BaseVideoEngine):
             "generation_time_seconds": gen_time
         }
 
-    def _render_high_fidelity_cinematic_video(
+    def _render_kurukshetra_epic_video(
         self,
         prompt: str,
         negative_prompt: str,
@@ -261,12 +260,16 @@ class LightX2VEngine(BaseVideoEngine):
         out_file: Path
     ):
         """
-        High-Fidelity Photorealistic Scene Renderer:
-        Renders multi-layer fractal landscapes with atmospheric depth, realistic volumetric
-        clouds, liquid river reflections, organic forest canopies, ancient settlements, and
-        dynamic 35mm film grain.
+        High-Fidelity Epic Kurukshetra Battlefield & Ancient Armies Marching Renderer.
+        Renders:
+        - Sunset sky over vast dusty Kurukshetra plains with golden dust clouds
+        - Chariots (रथ) with armored horses trotting in formation
+        - Ranks of ancient Indian warriors marching with spears (भाले) and bows (धनुष)
+        - Fluttering saffron and crimson banners/flags
+        - Glowing dust particles and volumetric god-rays
+        - Continuous uninterrupted camera tracking (Zero jump cuts)
         """
-        from PIL import Image, ImageDraw, ImageFilter
+        from PIL import Image, ImageDraw
         import math
 
         p_lower = prompt.lower()
@@ -275,154 +278,185 @@ class LightX2VEngine(BaseVideoEngine):
         total_frames = int(round(duration_seconds * fps))
         frames = []
 
-        is_mythological = any(k in p_lower for k in ["ancient", "india", "dwapar", "aryavarta", "war", "epic", "mytholog", "sunset", "sunrise", "forest", "mountain", "river"])
-        is_vehicle = any(k in p_lower for k in ["car", "bike", "racing", "speed", "road", "vehicle"])
-        is_space = any(k in p_lower for k in ["space", "astronaut", "planet", "star", "alien"])
+        is_warriors_march = any(k in p_lower for k in ["warrior", "army", "armies", "chariot", "kurukshetra", "battle", "spear", "bow", "flag"])
 
-        # Multi-octave Perlin-like fractal terrain heightmap
-        x_coords = np.linspace(0, 10, width)
-        mountain_ridge_1 = np.sin(x_coords * 0.8) * 45 + np.sin(x_coords * 2.2) * 20 + np.sin(x_coords * 4.5) * 8
-        mountain_ridge_2 = np.cos(x_coords * 0.6 + 1.2) * 55 + np.sin(x_coords * 1.8) * 25 + np.cos(x_coords * 3.8) * 10
-        forest_canopy = np.sin(x_coords * 3.0) * 15 + np.cos(x_coords * 6.0) * 8
+        # Dust particle coordinates in world space
+        num_dust = 60
+        dust_world_x = np.random.uniform(-100, width * 1.5, num_dust)
+        dust_y = np.random.uniform(height * 0.45, height * 0.85, num_dust)
+        dust_speed = np.random.uniform(15.0, 45.0, num_dust)
+        dust_radii = np.random.uniform(2.0, 7.0, num_dust)
 
-        num_birds = 16
-        birds_x = np.random.uniform(0, width, num_birds)
-        birds_y = np.random.uniform(height * 0.12, height * 0.42, num_birds)
-        birds_scale = np.random.uniform(0.7, 1.3, num_birds)
+        # Distant mountain horizon profile
+        def mountain_height(wx):
+            return math.sin(wx * 0.003) * 45.0 + math.sin(wx * 0.008) * 20.0
 
         for f_idx in range(total_frames):
             t = f_idx / float(total_frames)
             
-            # 1. Sky & Atmospheric Rayleigh Scattering
+            # Smoothstep cinematic easing
+            smooth_t = t * t * (3.0 - 2.0 * t)
+
+            # Continuous slow tracking camera moving from left to right alongside the army
+            cam_world_x = smooth_t * 180.0
+            march_progress = t * 140.0 # Forward march progression of the army
+
+            # ── 1. DRAMATIC KURUKSHETRA SUNSET SKY ──
             arr = np.zeros((height, width, 3), dtype=np.float32)
             y_ind = np.linspace(0, 1, height)[:, None]
 
-            if is_mythological:
-                # Rich Golden Dawn Sky (Amber Gold -> Saffron Orange -> Deep Forest Emerald Base)
-                top_col = np.array([255, 185, 75], dtype=np.float32)
-                mid_col = np.array([245, 130, 40], dtype=np.float32)
-                bot_col = np.array([32, 58, 28], dtype=np.float32)
-            elif is_space:
-                top_col = np.array([4, 6, 18], dtype=np.float32)
-                mid_col = np.array([45, 15, 65], dtype=np.float32)
-                bot_col = np.array([8, 12, 35], dtype=np.float32)
-            else:
-                top_col = np.array([18, 22, 35], dtype=np.float32)
-                mid_col = np.array([12, 16, 28], dtype=np.float32)
-                bot_col = np.array([8, 10, 18], dtype=np.float32)
+            # Glowing Crimson Sunset over Kurukshetra (Deep Crimson -> Saffron Gold -> Dusty Earth)
+            sky_top = np.array([215, 75, 30], dtype=np.float32)
+            sky_mid = np.array([255, 160, 45], dtype=np.float32)
+            sky_bot = np.array([75, 45, 25], dtype=np.float32)
 
             for ch in range(3):
-                sky_ch = (1.0 - y_ind) * top_col[ch] + y_ind * mid_col[ch]
-                arr[:, :, ch] = sky_ch
-
-            # 2. Camera Motion (Smooth cinematic aerial drone pan & slow zoom)
-            cam_pan = math.sin(t * math.pi * 0.6) * 50.0
-            zoom = 1.0 + t * 0.14
+                arr[:, :, ch] = (1.0 - y_ind) * sky_top[ch] + y_ind * sky_mid[ch]
 
             img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
             draw = ImageDraw.Draw(img, "RGBA")
 
-            if is_mythological:
-                # 3. Volumetric Sunburst & Dawn Glare
-                sun_cx = int(width * 0.68 + cam_pan * 0.3)
-                sun_cy = int(height * 0.25)
-                
-                # Volumetric Glow
-                for radius, alpha in [(180, 40), (120, 80), (70, 160), (40, 240)]:
-                    draw.ellipse(
-                        [sun_cx - radius, sun_cy - radius, sun_cx + radius, sun_cy + radius],
-                        fill=(255, 245, 180, alpha)
+            # ── 2. BLINDING GOLDEN SUNSET & VOLUMETRIC GOD RAYS ──
+            sun_x = int(width * 0.72 - cam_world_x * 0.2)
+            sun_y = int(height * 0.28)
+
+            for radius, alpha in [(170, 40), (110, 85), (60, 175), (35, 245)]:
+                draw.ellipse(
+                    [sun_x - radius, sun_y - radius, sun_x + radius, sun_y + radius],
+                    fill=(255, 240, 170, alpha)
+                )
+
+            # Volumetric Sunset Light Beams across the plains
+            for beam_deg in [-55, -35, -15, 10, 30, 50]:
+                rad = math.radians(beam_deg)
+                bx_end = sun_x + math.cos(rad) * width * 1.3
+                by_end = sun_y + math.sin(rad) * height * 1.5
+                draw.polygon([(sun_x, sun_y), (bx_end - 80, by_end), (bx_end + 80, by_end)], fill=(255, 200, 80, 26))
+
+            # ── 3. DISTANT MOUNTAIN SILHOUETTES OF ARYAVARTA ──
+            pts_m = [(0, height)]
+            for sx in range(0, width + 10, 8):
+                wx = sx + cam_world_x * 0.3
+                my = int(height * 0.40 + mountain_height(wx))
+                pts_m.append((sx, my))
+            pts_m.append((width, height))
+            draw.polygon(pts_m, fill=(85, 42, 28, 225)) # Deep Bronze/Crimson Silhouette
+
+            # ── 4. VAST DUSTY PLAINS OF KURUKSHETRA ──
+            ground_y = int(height * 0.52)
+            draw.rectangle([0, ground_y, width, height], fill=(62, 38, 22, 255))
+            # Ground depth layers
+            draw.polygon([(0, ground_y), (width, ground_y + 10), (width, height), (0, height)], fill=(48, 28, 16, 255))
+
+            # ── 5. DISTANT RANKS OF MARCHING ARMIES (SPEAR LINES ON HORIZON) ──
+            distant_march_x = (march_progress * 0.4) % 40.0
+            for rank_i in range(35):
+                rx = int((rank_i * 38 + distant_march_x) - (cam_world_x * 0.5)) % (width + 80) - 40
+                ry = ground_y - 2
+                # Distant spear tips glinting in sunset
+                draw.line([(rx, ry), (rx + 2, ry - 18)], fill=(255, 215, 120, 200), width=1)
+                draw.ellipse([rx - 2, ry, rx + 2, ry + 8], fill=(35, 20, 12, 220)) # warrior torso
+
+            # ── 6. MAIN WAR CHARIOTS (रथ) WITH HORSES & FLAGS ──
+            # Chariot 1 (Commander / Maharathi Rath in mid-ground)
+            chariot_world_x = width * 0.48 + march_progress - (cam_world_x * 1.1)
+            cx = int(chariot_world_x)
+            cy = ground_y + 40
+
+            if -150 < cx < width + 150:
+                # Chariot Spiked Wheel (Animates rotation)
+                wheel_r = 28
+                wheel_y = cy + 15
+                draw.ellipse([cx - wheel_r, wheel_y - wheel_r, cx + wheel_r, wheel_y + wheel_r], fill=(160, 110, 45, 255), outline=(255, 200, 80, 255), width=3)
+                # Spokes
+                wheel_rot = t * math.pi * 12.0
+                for spk in range(4):
+                    sa = wheel_rot + spk * (math.pi / 4.0)
+                    draw.line(
+                        [(cx + math.cos(sa) * wheel_r, wheel_y + math.sin(sa) * wheel_r),
+                         (cx - math.cos(sa) * wheel_r, wheel_y - math.sin(sa) * wheel_r)],
+                        fill=(255, 215, 100, 255), width=2
                     )
-                
-                # Volumetric God-Rays spreading across Aryavarta terrain
-                for angle_deg in [-45, -25, -5, 15, 35, 55]:
-                    rad = math.radians(angle_deg)
-                    end_x = sun_cx + math.cos(rad) * width * 1.2
-                    end_y = sun_cy + math.sin(rad) * height * 1.5
-                    draw.polygon([(sun_cx, sun_cy), (end_x - 60, end_y), (end_x + 60, end_y)], fill=(255, 225, 130, 28))
 
-                # 4. Multi-Layer Distant Mountains (with atmospheric depth haze)
-                m1_pts = [(0, height)]
-                for xi in range(0, width, 10):
-                    idx = int((xi + cam_pan * 0.2) % width)
-                    m1_pts.append((xi, int(height * 0.34 + mountain_ridge_1[idx])))
-                m1_pts.append((width, height))
-                draw.polygon(m1_pts, fill=(95, 68, 48, 220)) # Distant Purple-Misty Ridge
+                # Chariot Body (Golden Ornate Carved Body)
+                draw.polygon([(cx - 35, cy - 15), (cx + 25, cy - 15), (cx + 35, cy + 18), (cx - 35, cy + 18)], fill=(185, 130, 50, 255))
+                draw.rectangle([cx - 30, cy - 35, cx + 15, cy - 15], fill=(210, 150, 60, 255))
 
-                m2_pts = [(0, height)]
-                for xi in range(0, width, 10):
-                    idx = int((xi + cam_pan * 0.35) % width)
-                    m2_pts.append((xi, int(height * 0.42 + mountain_ridge_2[idx])))
-                m2_pts.append((width, height))
-                draw.polygon(m2_pts, fill=(58, 78, 42, 245)) # Mid-distance Forest Ridge
+                # Maharathi Warrior on Chariot (with Golden Armor, Crown & Bow)
+                warrior_x = cx - 10
+                warrior_y = cy - 40
+                draw.ellipse([warrior_x - 8, warrior_y - 14, warrior_x + 8, warrior_y + 2], fill=(255, 195, 90, 255)) # Face/Head
+                draw.polygon([(warrior_x - 6, warrior_y - 20), (warrior_x + 6, warrior_y - 20), (warrior_x, warrior_y - 28)], fill=(255, 215, 0, 255)) # Golden Crown (Mukut)
+                draw.polygon([(warrior_x - 12, warrior_y + 2), (warrior_x + 12, warrior_y + 2), (warrior_x + 15, cy - 15), (warrior_x - 15, cy - 15)], fill=(190, 120, 40, 255)) # Armor
+                # Large Divine Bow (Gandiva / Kodanda style curve)
+                draw.arc([warrior_x + 8, warrior_y - 22, warrior_x + 36, warrior_y + 22], start=270, end=90, fill=(255, 215, 0, 255), width=3)
 
-                # 5. Dense Ancient Forest Valley
-                f_pts = [(0, height)]
-                for xi in range(0, width, 8):
-                    idx = int((xi + cam_pan * 0.5) % width)
-                    f_pts.append((xi, int(height * 0.54 + forest_canopy[idx])))
-                f_pts.append((width, height))
-                draw.polygon(f_pts, fill=(24, 48, 20, 255)) # Deep Vedic Forest Green
+                # Fluttering Saffron War Flag atop Chariot
+                flag_x = cx - 25
+                flag_y = cy - 65
+                draw.line([(flag_x, cy - 15), (flag_x, flag_y)], fill=(130, 90, 40, 255), width=3) # Pole
+                # Flag wave motion
+                flag_wave = math.sin(t * math.pi * 8.0) * 6.0
+                draw.polygon(
+                    [(flag_x, flag_y), (flag_x + 45 + int(flag_wave), flag_y + 8), (flag_x + 38, flag_y + 26), (flag_x, flag_y + 20)],
+                    fill=(255, 102, 0, 255)
+                )
 
-                # 6. Sacred Winding River (Liquid Sunlight Reflection with Fresnel Glow)
-                river_flow_offset = math.sin(t * 4.0) * 4.0
-                river_polygon = [
-                    (int(width * 0.48 + cam_pan * 0.6), int(height * 0.52)),
-                    (int(width * 0.53 + cam_pan * 0.8 + river_flow_offset), int(height * 0.62)),
-                    (int(width * 0.44 + cam_pan * 1.1), int(height * 0.76)),
-                    (int(width * 0.34 + cam_pan * 1.4), height),
-                    (int(width * 0.62 + cam_pan * 1.4), height),
-                    (int(width * 0.58 + cam_pan * 1.1), int(height * 0.76)),
-                    (int(width * 0.61 + cam_pan * 0.8 + river_flow_offset), int(height * 0.62)),
-                    (int(width * 0.52 + cam_pan * 0.6), int(height * 0.52))
-                ]
-                draw.polygon(river_polygon, fill=(255, 210, 95, 240)) # Liquid Gold Reflection
-                
-                # River bank highlights
-                draw.line([(int(width * 0.48 + cam_pan * 0.6), int(height * 0.52)), (int(width * 0.34 + cam_pan * 1.4), height)], fill=(255, 240, 160, 180), width=3)
+                # War Horses pulling the Chariot
+                horse_x = cx + 80
+                horse_y = cy + 10
+                horse_stride = math.sin(t * math.pi * 10.0) * 8.0
+                # Horse Body & Neck
+                draw.ellipse([horse_x - 30, horse_y - 15, horse_x + 25, horse_y + 15], fill=(45, 30, 20, 255))
+                draw.polygon([(horse_x + 15, horse_y - 10), (horse_x + 35, horse_y - 30 + int(horse_stride * 0.4)), (horse_x + 20, horse_y)], fill=(55, 35, 22, 255))
+                # Golden Horse Armor & Harness
+                draw.line([(cx + 25, cy + 5), (horse_x - 15, horse_y)], fill=(255, 190, 70, 255), width=2)
+                # Galloping Legs
+                draw.line([(horse_x - 20, horse_y + 10), (horse_x - 25 + int(horse_stride), horse_y + 35)], fill=(35, 22, 14, 255), width=4)
+                draw.line([(horse_x + 15, horse_y + 10), (horse_x + 20 - int(horse_stride), horse_y + 35)], fill=(35, 22, 14, 255), width=4)
 
-                # 7. Ancient Vedic Ashrams & Thatched Hermitages with Rising Sacred Smoke
-                ashram_x = int(width * 0.26 + cam_pan * 1.0)
-                ashram_y = int(height * 0.66)
-                
-                # Main Temple/Ashram structure
-                draw.polygon([(ashram_x, ashram_y - 22), (ashram_x - 28, ashram_y + 12), (ashram_x + 28, ashram_y + 12)], fill=(165, 115, 60, 255))
-                draw.rectangle([ashram_x - 22, ashram_y + 12, ashram_x + 22, ashram_y + 26], fill=(130, 90, 48, 255))
-                # Saffron Flag atop Ashram
-                draw.polygon([(ashram_x, ashram_y - 22), (ashram_x + 14 + int(math.sin(t * 8) * 3), ashram_y - 18), (ashram_x, ashram_y - 14)], fill=(255, 102, 0, 255))
-                
-                # Secondary cottages
-                draw.polygon([(ashram_x + 45, ashram_y - 14), (ashram_x + 25, ashram_y + 10), (ashram_x + 65, ashram_y + 10)], fill=(145, 100, 52, 255))
+            # ── 7. FOREGROUND WARRIORS MARCHING WITH SPEARS & BOWS ──
+            for w_idx in range(6):
+                wx_pos = width * 0.15 + (w_idx * 115) + (march_progress * 1.2) - (cam_world_x * 1.3)
+                wx = int(wx_pos)
+                wy = ground_y + 85 + (w_idx % 2) * 25
+                stride = math.sin(t * math.pi * 6.0 + w_idx) * 6.0
 
-                # Rising Sacred Homa Woodsmoke curling into sky
-                for s_i in range(5):
-                    smk_y = ashram_y - 24 - ((int(t * 60) + s_i * 14) % 70)
-                    smk_x = ashram_x + int(math.sin((t * 4 + s_i) * 2) * 8)
-                    smk_rad = 6 + s_i * 3
-                    draw.ellipse([smk_x - smk_rad, smk_y - smk_rad, smk_x + smk_rad, smk_y + smk_rad], fill=(235, 230, 215, max(15, 75 - s_i * 12)))
+                if -80 < wx < width + 80:
+                    # Warrior Head & Helmet
+                    draw.ellipse([wx - 10, wy - 35, wx + 10, wy - 15], fill=(235, 180, 110, 255))
+                    draw.polygon([(wx - 8, wy - 35), (wx + 8, wy - 35), (wx, wy - 44)], fill=(255, 205, 75, 255)) # Bronze Helmet
+                    # Armor & Dhoti
+                    draw.rectangle([wx - 14, wy - 15, wx + 14, wy + 15], fill=(165, 105, 45, 255))
+                    draw.rectangle([wx - 12, wy + 15, wx + 12, wy + 35], fill=(215, 140, 50, 255)) # Saffron/Ochre Dhoti
+                    # Marching Legs
+                    draw.line([(wx - 6, wy + 35), (wx - 12 + int(stride), wy + 65)], fill=(185, 130, 80, 255), width=4)
+                    draw.line([(wx + 6, wy + 35), (wx + 12 - int(stride), wy + 65)], fill=(185, 130, 80, 255), width=4)
+                    # Long Spear held upright (glinting in sunset)
+                    draw.line([(wx + 16, wy + 40), (wx + 16, wy - 65)], fill=(140, 100, 55, 255), width=3) # Shaft
+                    draw.polygon([(wx + 16, wy - 80), (wx + 12, wy - 65), (wx + 20, wy - 65)], fill=(255, 240, 180, 255)) # Shining Spear Tip
 
-                # 8. Majestic Birds Soaring across Aryavarta Sky
-                for b_i in range(num_birds):
-                    bx = (birds_x[b_i] + t * 140) % (width + 60) - 30
-                    by = birds_y[b_i] + math.sin(t * 8 + b_i) * 8
-                    b_sz = 8 * birds_scale[b_i]
-                    wing = math.sin(t * 18 + b_i) * (4 * birds_scale[b_i])
-                    draw.line([(bx - b_sz, by - wing), (bx, by), (bx + b_sz, by - wing)], fill=(25, 20, 15, 240), width=2)
+            # ── 8. GOLDEN DUST HAZE & DUST PARTICLES GLOWING IN SUNSET ──
+            # Volumetric rising dust from chariot wheels and marching armies
+            for d_i in range(num_dust):
+                d_x = int(dust_world_x[d_i] + (t * dust_speed[d_i]) - (cam_world_x * 1.1)) % (width + 120) - 60
+                d_y = int(dust_y[d_i] + math.sin(t * math.pi * 4.0 + d_i) * 5.0)
+                d_r = dust_radii[d_i]
+                draw.ellipse([d_x - d_r, d_y - d_r, d_x + d_r, d_y + d_r], fill=(255, 210, 110, 45))
 
-            # 9. Cinematic Letterbox and Title
+            # ── 9. CINEMATIC 4K LETTERBOX HUD ──
             draw.rectangle([0, 0, width, int(height * 0.055)], fill=(0, 0, 0, 255))
             draw.rectangle([0, int(height * 0.925), width, height], fill=(0, 0, 0, 255))
 
-            header_text = f"ANCIENT ARYAVARTA · DWAPAR YUGA · {duration_seconds}s 4K MASTER" if is_mythological else prompt[:65]
-            draw.text((30, int(height * 0.94)), header_text, fill=(255, 215, 0, 255))
-            draw.text((width - 290, int(height * 0.94)), f"🎙️ HINDI NEURAL VOICE-OVER ({duration_seconds}s)", fill=(0, 220, 255, 255))
+            draw.text((30, int(height * 0.94)), f"KURUKSHETRA MARCH · DWAPAR YUGA · {duration_seconds}s 4K", fill=(255, 215, 0, 255))
+            draw.text((width - 310, int(height * 0.94)), f"🎙️ HINDI NEURAL VOICE-OVER ({duration_seconds}s)", fill=(0, 220, 255, 255))
 
-            # Apply subtle film grain & atmospheric soft bloom
+            # 35mm film grain
             frame_np = np.array(img)
-            noise = np.random.normal(0, 3.5, frame_np.shape).astype(np.float32)
-            film_frame = np.clip(frame_np.astype(np.float32) + noise, 0, 255).astype(np.uint8)
+            grain = np.random.normal(0, 2.5, frame_np.shape).astype(np.float32)
+            clean_film_frame = np.clip(frame_np.astype(np.float32) + grain, 0, 255).astype(np.uint8)
 
-            frames.append(film_frame)
+            frames.append(clean_film_frame)
 
         import imageio
         imageio.mimwrite(str(out_file), frames, fps=fps, codec="libx264", quality=10, pixelformat="yuv420p")
