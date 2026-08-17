@@ -474,68 +474,85 @@
   }
 
   function startJobStream(jobId) {
-    if (sseSource) sseSource.close();
-    sseSource = new EventSource(`/api/jobs/${jobId}/stream`);
+    if (sseSource) {
+      try { sseSource.close(); } catch(e){}
+    }
+    // Start fast, direct polling immediately (works across all tunnels, proxies, and networks)
+    pollJobStatus(jobId);
+    
+    try {
+      sseSource = new EventSource(`/api/jobs/${jobId}/stream`);
+      sseSource.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          handleJobData(d);
+        } catch(err){}
+      };
+      sseSource.onerror = () => {
+        try { sseSource.close(); } catch(e){}
+      };
+    } catch(err){}
+  }
 
-    sseSource.onmessage = (e) => {
-      const d = JSON.parse(e.data);
-      if (d.error) { updateProgress(0, 'FAILED', d.error); sseSource.close(); return; }
+  function handleJobData(d) {
+    if (!d) return;
+    const pct = Math.round(d.progress || 0);
+    const state = d.status || 'QUEUED';
+    const logs = d.logs || [];
+    const lastLog = logs[logs.length - 1] || 'Processing...';
 
-      const pct = Math.round(d.progress || 0);
-      const state = d.status;
-      const logs = d.logs || [];
-      const lastLog = logs[logs.length - 1] || 'Processing...';
+    updateProgress(pct, state, lastLog);
 
-      updateProgress(pct, state, lastLog);
-
-      const logEl = document.getElementById('gen-logs');
+    const logEl = document.getElementById('gen-logs');
+    if (logEl) {
       logEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
       logEl.scrollTop = logEl.scrollHeight;
+    }
 
-      if (state === 'COMPLETED') {
-        sseSource.close();
-        showVideoResult(d.result_url);
-        loadDashJobs();
-      } else if (state === 'FAILED') {
-        sseSource.close();
-      }
-    };
-    sseSource.onerror = () => {
-      // SSE disconnected, fall back to polling
-      sseSource.close();
-      pollJobStatus(jobId);
-    };
+    if (state === 'COMPLETED') {
+      showVideoResult(d.result_url, d.job_id);
+      loadDashJobs();
+    }
   }
 
+  let pollTimer = null;
   function pollJobStatus(jobId) {
+    if (pollTimer) clearInterval(pollTimer);
     let polls = 0;
-    const interval = setInterval(async () => {
+    
+    pollTimer = setInterval(async () => {
       try {
         const r = await fetch(`/api/jobs/${jobId}`);
+        if (!r.ok) return;
         const d = await r.json();
-        const pct = Math.round(d.progress || 0);
-        const logs = d.logs || [];
-        updateProgress(pct, d.status, logs[logs.length-1] || 'Processing...');
+        handleJobData(d);
 
-        if (d.status === 'COMPLETED') {
-          clearInterval(interval);
-          showVideoResult(d.result_url);
-        } else if (d.status === 'FAILED' || d.status === 'CANCELLED') {
-          clearInterval(interval);
-        } else if (++polls > 120) {
-          clearInterval(interval);
+        if (d.status === 'COMPLETED' || d.status === 'FAILED' || d.status === 'CANCELLED' || ++polls > 200) {
+          clearInterval(pollTimer);
         }
-      } catch (e) {}
-    }, 1500);
+      } catch (e) {
+        console.warn('Poll error:', e);
+      }
+    }, 700);
   }
 
-  function showVideoResult(url) {
+  function showVideoResult(url, jobId) {
     document.getElementById('gen-result-card').style.display = 'block';
-    if (url) {
-      const apiUrl = `/api/outputs/${encodeURIComponent(url.split('/').pop())}`;
-      document.getElementById('result-src').src = apiUrl;
-      document.getElementById('result-video').load();
-      document.getElementById('download-btn').href = apiUrl;
+    const filename = url ? url.split('/').pop().split('\\').pop() : `${jobId}.mp4`;
+    const videoUrl = `/api/outputs/${encodeURIComponent(filename)}`;
+    
+    const vid = document.getElementById('result-video');
+    const src = document.getElementById('result-src');
+    const dlBtn = document.getElementById('download-btn');
+    
+    if (src && vid) {
+      src.src = videoUrl;
+      vid.load();
+      vid.play().catch(() => {});
+    }
+    if (dlBtn) {
+      dlBtn.href = videoUrl;
+      dlBtn.download = filename;
     }
   }
 

@@ -5,7 +5,17 @@
 set -euo pipefail
 
 echo "============================================================"
-echo "Starting Harsh AI Video Studio with Public Web UI Link..."
+echo "Cleaning up old background processes..."
+echo "============================================================"
+
+# Kill any old running server on port 8000
+pkill -f "uvicorn" || true
+pkill -f "start_studio" || true
+pkill -f "cloudflared" || true
+sleep 1
+
+echo "============================================================"
+echo "Starting Harsh AI Video Studio on Port 8000..."
 echo "============================================================"
 
 # 1. Start Studio Backend on Port 8000 in background
@@ -13,7 +23,7 @@ cd /workspace/harshAiVideo
 PYTHONPATH=backend python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > studio_backend.log 2>&1 &
 BACKEND_PID=$!
 
-echo "Backend started on localhost:8000 (PID: ${BACKEND_PID})"
+echo "Backend started successfully (PID: ${BACKEND_PID})"
 sleep 2
 
 # 2. Download Cloudflare Tunnel if not present
