@@ -1,113 +1,117 @@
 """
-Prompt Synthesizer Engine with Automatic Hindi-to-English Neural Translation & 8K Quality Enhancement.
+Prompt Synthesizer & Dual-Track Audio/Visual Parser for Harsh AI Video Studio.
+Splits compound prompts into clean visual scene directions and spoken Voice-over dialogue.
+Optimized for Ancient Indian / Mythological epics, Modern Cinema, and Realistic Diffusion.
 """
 import re
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.models.schemas import CharacterResponse, LocationResponse
 
 
-# Extensive Hindi/Hinglish to English cinematic translation dictionary
+# Hindi to English lexicon for common terms
 HINDI_DICTIONARY = {
-    # Animals & Nature
     "शेर": "majestic royal lion",
     "बाघ": "powerful royal bengal tiger",
     "हाथी": "majestic elephant",
     "घोड़ा": "magnificent galloping horse",
     "चीता": "sleek fast cheetah",
-    "पक्षी": "beautiful exotic bird",
+    "पक्षी": "flock of birds flying across sky",
     "बर्फ": "deep white powdery snow",
-    "जंगल": "lush dense green forest",
-    "पहाड़": "majestic snow-capped mountain peaks",
-    "नदी": "crystal clear flowing river",
+    "जंगल": "dense ancient Vedic forest",
+    "पहाड़": "majestic distant mountain peaks",
+    "नदी": "winding sacred river with morning mist",
     "समुद्र": "dramatic ocean waves crashing",
     "सूर्य": "golden blazing sun",
-    "सूर्यास्त": "dramatic golden hour sunset with orange purple sky",
-    "सूर्योदय": "glorious sunrise with warm light beams",
+    "सूर्यास्त": "dramatic golden hour sunset with orange sky",
+    "सूर्योदय": "golden sunrise spreading light across landscape",
     "चांद": "luminous glowing full moon",
     "रात": "dark atmospheric night with starry sky",
-    "दिन": "bright sunny clear day",
+    "दिन": "bright clear morning",
     "बारिश": "heavy cinematic rain pouring with water reflections",
-    "तूफान": "dramatic electrical thunderstorm with lightning",
-    "हवा": "strong cinematic wind",
-    "पेड़": "ancient tall towering trees",
-    "फूल": "vibrant blooming colorful flowers",
-
-    # Vehicles & Action
-    "कार": "luxurious sleek modern sports car",
-    "गाड़ी": "high-end futuristic luxury vehicle",
-    "बाइक": "custom high-speed motorcycle",
-    "हवाई जहाज": "futuristic supersonic aircraft",
-    "सड़क": "wet asphalt highway with neon light reflections",
-    "शहर": "sprawling futuristic cyberpunk metropolis skyline",
-    "मार्केट": "bustling vibrant exotic street market with lanterns",
-    "बाजार": "vibrant bustling bazaar with colorful stalls and crowd",
-    "घर": "cozy warm luxurious modern house interior",
-    "ऑफिस": "high-tech corporate executive glass boardroom",
-    "स्कूल": "futuristic academy grand lecture hall",
-
-    # Characters & People
-    "आदमी": "handsome charismatic man",
-    "लड़का": "stylish energetic young man",
-    "औरत": "elegant beautiful woman",
-    "लड़की": "gorgeous attractive young woman",
-    "योद्धा": "epic armored warrior with glowing sword",
-    "राजा": "majestic royal king with golden crown",
-    "सैनिक": "tactical elite special forces soldier",
-    "अंतरिक्ष यात्री": "heroic astronaut in high-tech spacesuit exploring alien world",
-    "बच्चा": "cute joyful playful child",
-    "चेहरा": "detailed expressive human face with sharp features",
-    "आंखें": "piercing glowing detailed eyes",
-
-    # Actions & Verbs
-    "दौड़ रहा है": "running dynamically with high speed",
-    "चल रहा है": "walking majestically with confident stride",
-    "उड़ रहा है": "soaring gracefully through the sky",
-    "देख रहा है": "gazing intensely into the distance",
-    "बोल रहा है": "speaking passionately",
-    "लड़ रहा है": "fighting in epic cinematic battle",
-    "गा रहा है": "singing emotionally",
-    "नाच रहा है": "dancing gracefully with vibrant motion",
-    "खड़ा है": "standing heroically in dramatic pose",
-    "बैठा है": "sitting calmly in thoughtful pose",
-    "चमक रहा है": "radiating bright glowing cinematic light",
-    "तेज": "extremely fast high speed action motion",
-    "सुंदर": "breathtakingly beautiful, aesthetic, highly detailed",
-    "खतरनाक": "intense menacing epic dramatic"
+    "तूफान": "dramatic thunderstorm with lightning",
+    "हवा": "gentle morning breeze",
+    "पेड़": "ancient tall banyan and sal trees",
+    "गांव": "ancient small settlement with thatched cottages and smoke",
+    "महल": "grand ancient Indian palace with stone carvings",
+    "द्वापर युग": "ancient India during the legendary Dwapar Yuga era",
+    "आर्यावर्त": "vast epic landscape of ancient Aryavarta with rivers and mountains",
+    "महायुद्ध": "epic battlefield atmosphere of impending war with gathering storm clouds"
 }
+
+
+def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Optional[str]]:
+    """
+    Separates user input into Visual Scene Prompt and Voice-over Dialogue.
+    Example:
+    Input: "Ancient India... Voice-over: “बहुत समय पहले…”"
+    Returns: ("Ancient India...", "बहुत समय पहले…")
+    """
+    if not raw_input:
+        return ("cinematic epic landscape, 8k resolution", None)
+
+    # Patterns for voiceover / dialogue
+    vo_patterns = [
+        r'(?:Voice-over|Voiceover|Voice over|वॉइस ओवर|डायलॉग|Dialogue)\s*:\s*["“\']?(.*?)(?:["”\']?$)',
+        r'["“]([\u0900-\u097F\s\.\,…!?-]+)["”]' # Devanagari inside quotes
+    ]
+
+    voiceover_text = None
+    clean_visual = raw_input
+
+    for pat in vo_patterns:
+        match = re.search(pat, raw_input, re.IGNORECASE | re.DOTALL)
+        if match:
+            voiceover_text = match.group(1).strip().strip('"“\'”')
+            # Remove voice-over portion from the visual prompt
+            clean_visual = re.sub(pat, '', clean_visual, flags=re.IGNORECASE | re.DOTALL).strip()
+            break
+
+    # If raw input is entirely Devanagari (and no explicit voiceover tag), treat it as both
+    if not voiceover_text and re.search(r'[\u0900-\u097F]', raw_input):
+        voiceover_text = raw_input.strip()
+
+    return (clean_visual.strip(), voiceover_text)
 
 
 def translate_and_enhance_hindi_prompt(text: str) -> str:
     """
     Translates Hindi / Devanagari text to rich, cinematic English diffusion prompts.
-    Also enhances English prompts with 8K cinematic quality modifiers.
+    Also enhances mythological, ancient Indian, and epic cinematic themes.
     """
     if not text:
-        return "cinematic high quality photorealistic scene"
+        return "majestic ancient Indian aerial landscape, golden sunrise, 8k resolution, cinematic lighting"
 
-    # Check if text contains Devanagari / Hindi characters
-    has_hindi = bool(re.search(r'[\u0900-\u097F]', text))
-    
     enhanced = text
+    p_lower = text.lower()
 
-    if has_hindi:
+    # Check for Ancient Indian / Mythological keywords
+    is_mythological = any(k in p_lower for k in [
+        "ancient india", "dwapar", "dwapara", "aryavarta", "yuga", "vedic", "settlement", "war", "epic", "mytholog"
+    ]) or any(k in text for k in ["द्वापर", "आर्यावर्त", "महायुद्ध", "प्राचीन"])
+
+    # If text contains Devanagari, translate key terms
+    if re.search(r'[\u0900-\u097F]', text):
         translated_segments = []
-        # Replace known Hindi words with rich cinematic descriptions
         for hindi_word, eng_desc in HINDI_DICTIONARY.items():
             if hindi_word in enhanced:
                 translated_segments.append(eng_desc)
                 enhanced = enhanced.replace(hindi_word, "")
-        
-        # If segments were matched, combine them; otherwise transliterate/provide default
         if translated_segments:
             enhanced = ", ".join(translated_segments)
-        else:
-            enhanced = "majestic cinematic scene, highly detailed photorealistic masterpiece"
 
-    # Add 8K Ultra-HD Quality Modifiers
-    quality_boosters = (
-        "masterpiece, highly detailed, photorealistic, 8k resolution, cinematic lighting, "
-        "35mm anamorphic lens, sharp focus, volumetric light, professional color grading"
-    )
+    if is_mythological:
+        quality_boosters = (
+            "epic mythological Indian cinematic realism, Mahabharat and Baahubali visual scale, "
+            "vast aerial drone view of ancient Aryavarta, dense virgin forests, winding holy rivers, "
+            "distant misty mountains, small ancient Vedic settlements, golden sunrise beams, "
+            "subtle storm clouds on horizon, flock of birds soaring, photorealistic, 4K resolution, "
+            "35mm anamorphic cinema lens, atmospheric depth, octane render, masterpiece"
+        )
+    else:
+        quality_boosters = (
+            "masterpiece, highly detailed, photorealistic, 8k resolution, cinematic lighting, "
+            "35mm anamorphic lens, sharp focus, volumetric light, professional color grading"
+        )
 
     final_prompt = f"{enhanced}, {quality_boosters}"
     return final_prompt
@@ -121,58 +125,32 @@ class PromptService:
         location: Optional[LocationResponse] = None,
         camera_motion: str = "cinematic tracking",
         lens_style: Optional[str] = None
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """
-        Synthesizes an optimal prompt for Wan 2.2 I2V / LightX2V NVFP4 diffusion.
-        Automatically handles Hindi translation and 8K visual quality enhancement.
+        Synthesizes visual and audio channels from prompt.
         """
-        prompt_segments: List[str] = []
+        visual_raw, voiceover = parse_prompt_and_voiceover(action_prompt)
+        enhanced_action = translate_and_enhance_hindi_prompt(visual_raw)
+
         negative_segments: List[str] = [
             "blurry", "low quality", "deformed anatomy", "bad proportions",
             "flicker", "jitter", "watermark", "text signature", "oversaturated",
             "extra limbs", "floating limbs", "mutated hands", "pixelated", "jpeg artifacts",
-            "poorly drawn face", "bad eyes", "ugly", "duplicate"
+            "poorly drawn face", "bad eyes", "ugly", "duplicate", "modern buildings", "cars", "wires"
         ]
 
-        # 1. Translate & Enhance action prompt
-        enhanced_action = translate_and_enhance_hindi_prompt(action_prompt)
+        prompt_segments = [enhanced_action]
 
-        # 2. Location Context
         if location:
-            loc_context = f"{location.name}, {location.architecture}, {location.environment}"
-            lighting_context = f"{location.lighting} lighting, {location.time_of_day}, {location.weather} atmosphere"
-            prompt_segments.append(f"Setting: {loc_context}, {lighting_context}")
-            if location.default_prompt:
-                prompt_segments.append(location.default_prompt)
-
-        # 3. Character Context
+            prompt_segments.append(f"Setting: {location.name}, {location.architecture}, {location.environment}")
         if characters:
-            for idx, char in enumerate(characters):
-                char_label = f"Character {idx+1} ({char.name})" if len(characters) > 1 else char.name
-                char_desc = f"{char_label}: {char.appearance}, {char.hair} hair, wearing {char.clothing}"
-                if char.accessories:
-                    char_desc += f", with {char.accessories}"
-                if char.optional_lora:
-                    char_desc += f", <lora:{char.optional_lora}:0.85>"
-                prompt_segments.append(char_desc)
-
-        # 4. Action Focus
-        prompt_segments.append(f"Action: {enhanced_action}")
-
-        # 5. Camera & Optics
-        camera_desc = f"Camera: {camera_motion} shot"
-        if lens_style or (location and location.camera_style):
-            camera_desc += f", shot on {lens_style or location.camera_style}"
-        else:
-            camera_desc += ", 35mm anamorphic cinema lens, octane render detail"
-        prompt_segments.append(camera_desc)
-
-        final_positive = " | ".join(prompt_segments)
-        final_negative = ", ".join(list(dict.fromkeys(negative_segments)))
+            for c in characters:
+                prompt_segments.append(f"Character: {c.name} ({c.appearance})")
 
         return {
-            "prompt": final_positive,
-            "negative_prompt": final_negative
+            "prompt": " | ".join(prompt_segments),
+            "negative_prompt": ", ".join(list(dict.fromkeys(negative_segments))),
+            "voiceover_text": voiceover
         }
 
 

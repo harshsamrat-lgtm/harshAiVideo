@@ -29,6 +29,10 @@ imageio>=2.34.0
 imageio[ffmpeg]>=0.5.1
 huggingface_hub>=0.24.0
 
+# Neural Voice-Over & Audio Speech Synthesis
+edge-tts>=6.1.12
+gTTS>=2.5.1
+
 # System Telemetry & Monitoring
 psutil>=6.0.0
 pynvml>=11.5.0; sys_platform == 'linux' or sys_platform == 'win32'
