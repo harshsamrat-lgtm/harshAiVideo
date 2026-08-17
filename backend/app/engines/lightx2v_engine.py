@@ -196,8 +196,8 @@ class LightX2VEngine(BaseVideoEngine):
 
         neg_prompt = (
             negative_prompt or
-            "blurry, low quality, distorted, deformed, watermark, text, lowres, "
-            "bad anatomy, bad proportions, extra limbs, ugly, duplicate, jpeg artifacts"
+            "blurry, motion blur, ghosting, out of frame, cropped limbs, cut off objects, "
+            "distorted face, deformed anatomy, bad proportions, extra limbs, ugly, duplicate, jpeg artifacts, text, watermark"
         )
 
         # ── 2. SYNTHESIZE NEURAL HINDI VOICEOVER & AMBIENT MUSIC ──
@@ -242,7 +242,7 @@ class LightX2VEngine(BaseVideoEngine):
                     prompt=clean_english_prompt,
                     num_videos_per_prompt=1,
                     num_inference_steps=50,
-                    guidance_scale=6.0,
+                    guidance_scale=7.0,
                     num_frames=49,
                     generator=generator,
                 )
@@ -309,7 +309,7 @@ class LightX2VEngine(BaseVideoEngine):
                 "generation_time_seconds": round(time.time() - start_time, 2)
             }
 
-        # ── 4. HD POST-PROCESSING: UPSCALE, SHARPEN, 24FPS INTERPOLATION ──
+        # ── 4. CLEAN HD POST-PROCESSING (ZERO BLURRING, ZERO OBJECT CUTTING) ──
         target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
@@ -321,18 +321,23 @@ class LightX2VEngine(BaseVideoEngine):
 
         time_stretch = target_duration / raw_duration
 
+        # Clean Lanczos 16:9 aspect-ratio preserving scale + unsharp filter (NO blocky minterpolate artifacts)
+        vf_filter = (
+            f"setpts={time_stretch}*PTS,"
+            f"scale=w={target_w}:h={target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
+            f"crop={target_w}:{target_h},"
+            f"fps=24,"
+            f"unsharp=5:5:1.2:5:5:0.6,"
+            f"eq=contrast=1.05:saturation=1.05"
+        )
+
         enhance_cmd = [
             ffmpeg_cmd, "-y",
             "-i", str(raw_temp_video),
-            "-vf", (
-                f"setpts={time_stretch}*PTS,"
-                f"minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc:me_mode=bidir,"
-                f"scale={target_w}:{target_h}:flags=lanczos,"
-                f"unsharp=5:5:0.8:5:5:0.4"
-            ),
+            "-vf", vf_filter,
             "-t", str(target_duration),
             "-c:v", "libx264",
-            "-crf", "18",
+            "-crf", "16",
             "-preset", "slow",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
