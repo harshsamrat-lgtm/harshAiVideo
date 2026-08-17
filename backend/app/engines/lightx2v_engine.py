@@ -4,9 +4,9 @@ Harsh AI Video Studio — Real Neural AI Video Diffusion Engine.
 Model Cascade (Best → Fallback):
   1. CogVideoX-5B (THUDM/CogVideoX-5b) — 5 Billion parameter, 720×480 native HD, bfloat16
   2. CogVideoX-2B (THUDM/CogVideoX-2b) — Lighter 2B fallback if VRAM < 20GB
-  3. ModelScope 1.7B (damo-vilab/text-to-video-ms-1.7b) — Last resort legacy
+  3. ModelScope 1.7B (damo-vilab/text-to-video-ms-1.7b) — Fast legacy fallback
 
-All models run on NVIDIA RTX 5090 (32GB VRAM, CUDA 12.4).
+All models run on NVIDIA GPU with CUDA.
 Includes Dual-Track Hindi Voice-over, Semantic Prompt Enhancement, and HD Post-Processing.
 """
 from typing import Dict, Any, Optional
@@ -35,7 +35,7 @@ def _get_vram_gb() -> float:
     try:
         import torch
         if torch.cuda.is_available():
-            return torch.cuda.get_device_properties(0).total_mem / (1024**3)
+            return torch.cuda.get_device_properties(0).total_memory / (1024**3)
     except Exception:
         pass
     return 0.0
@@ -56,23 +56,23 @@ class LightX2VEngine(BaseVideoEngine):
     async def load_model(self) -> bool:
         global _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
 
-        if _ACTIVE_MODEL_NAME is not None:
+        if _ACTIVE_MODEL_NAME is not None and (_COGVIDEO_5B_PIPE or _COGVIDEO_2B_PIPE or _MODELSCOPE_PIPE):
             self.is_loaded = True
             return True
 
         try:
             import torch
             if not torch.cuda.is_available():
-                logger.warning("No CUDA GPU detected. Video generation will use CPU (very slow).")
+                logger.warning("No CUDA GPU detected. Video generation requires CUDA.")
                 self.is_loaded = True
                 return True
 
-            vram = torch.cuda.get_device_properties(0).total_mem / (1024**3)
+            vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             gpu_name = torch.cuda.get_device_name(0)
-            logger.info(f"🖥️ GPU: {gpu_name} ({vram:.1f} GB VRAM)")
+            logger.info(f"🖥️ Detected GPU: {gpu_name} ({vram:.1f} GB VRAM)")
 
             # ── TRY 1: CogVideoX-5B (Best Quality, needs ~18GB VRAM) ──
-            if vram >= 18.0:
+            if vram >= 16.0:
                 try:
                     from diffusers import CogVideoXPipeline
                     logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
@@ -89,10 +89,10 @@ class LightX2VEngine(BaseVideoEngine):
                     self.is_loaded = True
                     return True
                 except Exception as e:
-                    logger.warning(f"CogVideoX-5B load failed ({e}). Trying CogVideoX-2B...")
+                    logger.warning(f"CogVideoX-5B load notice ({e}). Trying CogVideoX-2B...")
 
             # ── TRY 2: CogVideoX-2B (Good Quality, needs ~10GB VRAM) ──
-            if vram >= 10.0:
+            if vram >= 8.0:
                 try:
                     from diffusers import CogVideoXPipeline
                     logger.info("🚀 Loading CogVideoX-2B (2 Billion parameter model)...")
@@ -109,12 +109,12 @@ class LightX2VEngine(BaseVideoEngine):
                     self.is_loaded = True
                     return True
                 except Exception as e:
-                    logger.warning(f"CogVideoX-2B load failed ({e}). Trying ModelScope 1.7B...")
+                    logger.warning(f"CogVideoX-2B load notice ({e}). Trying ModelScope 1.7B...")
 
             # ── TRY 3: ModelScope 1.7B (Legacy Fallback) ──
             try:
                 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
-                logger.info("🚀 Loading ModelScope text-to-video-ms-1.7b (legacy fallback)...")
+                logger.info("🚀 Loading ModelScope text-to-video-ms-1.7b (fallback)...")
                 _MODELSCOPE_PIPE = DiffusionPipeline.from_pretrained(
                     "damo-vilab/text-to-video-ms-1.7b",
                     torch_dtype=torch.float16,
@@ -127,14 +127,14 @@ class LightX2VEngine(BaseVideoEngine):
                 _MODELSCOPE_PIPE = _MODELSCOPE_PIPE.to("cuda")
                 _ACTIVE_MODEL_NAME = "ModelScope-1.7B"
                 self.name = "ModelScope-1.7B"
-                logger.info("✅ ModelScope 1.7B loaded on GPU (legacy mode).")
+                logger.info("✅ ModelScope 1.7B loaded on GPU.")
                 self.is_loaded = True
                 return True
             except Exception as e:
-                logger.warning(f"ModelScope load failed ({e}).")
+                logger.warning(f"ModelScope load notice ({e}).")
 
         except Exception as e:
-            logger.error(f"Engine initialization error: {e}")
+            logger.error(f"Engine initialization error: {e}", exc_info=True)
 
         _ACTIVE_MODEL_NAME = "none"
         self.is_loaded = True
@@ -168,6 +168,11 @@ class LightX2VEngine(BaseVideoEngine):
         start_time = time.time()
         actual_seed = seed if seed != -1 else int(time.time() * 1000) % 1000000
         target_duration = max(4.0, float(duration_seconds or 8.0))
+
+        # Ensure pipeline is loaded
+        if _COGVIDEO_5B_PIPE is None and _COGVIDEO_2B_PIPE is None and _MODELSCOPE_PIPE is None:
+            logger.info("Pipeline not loaded yet, loading model now...")
+            await self.load_model()
 
         # ── 1. DUAL-TRACK PARSE: VISUAL SCENE vs SPOKEN VOICEOVER ──
         visual_raw, voiceover_dialogue = parse_prompt_and_voiceover(prompt)
@@ -219,19 +224,14 @@ class LightX2VEngine(BaseVideoEngine):
         elif ambient_music_file.exists():
             shutil.copy(str(ambient_music_file), str(final_mixed_audio))
 
-        # ── 3. GENERATE VIDEO WITH MODEL CASCADE ──
+        # ── 3. GENERATE VIDEO WITH ACTIVE MODEL ──
         generated = False
 
         try:
             import torch
 
             if not torch.cuda.is_available():
-                raise RuntimeError("No CUDA GPU")
-
-            # Ensure model pipeline is loaded
-            if _COGVIDEO_5B_PIPE is None and _COGVIDEO_2B_PIPE is None and _MODELSCOPE_PIPE is None:
-                logger.info("Pipeline not loaded yet, loading model now...")
-                await self.load_model()
+                raise RuntimeError("No CUDA GPU available")
 
             generator = torch.Generator("cuda").manual_seed(actual_seed)
 
@@ -273,7 +273,7 @@ class LightX2VEngine(BaseVideoEngine):
 
             # ═══ ModelScope 1.7B (LEGACY LAST RESORT) ═══
             elif _MODELSCOPE_PIPE is not None:
-                logger.info("🎬 Generating with ModelScope 1.7B (legacy mode)...")
+                logger.info("🎬 Generating with ModelScope 1.7B (fallback mode)...")
                 video_output = _MODELSCOPE_PIPE(
                     prompt=clean_english_prompt,
                     negative_prompt=neg_prompt,
@@ -293,14 +293,14 @@ class LightX2VEngine(BaseVideoEngine):
                 logger.info(f"✅ ModelScope 1.7B generated {len(frames)} frames")
 
         except Exception as e:
-            logger.error(f"❌ All GPU diffusion models failed: {e}")
+            logger.error(f"❌ Video generation inference error: {e}", exc_info=True)
 
-        if not generated:
-            logger.error("⚠️ No AI model available. Cannot generate video.")
+        if not generated or not raw_temp_video.exists():
+            logger.error("⚠️ Video generation failed to create frames.")
             return {
-                "engine": self.name,
+                "engine": _ACTIVE_MODEL_NAME or self.name,
                 "status": "FAILED",
-                "error": "No AI video model could be loaded. Please ensure GPU drivers and PyTorch are installed.",
+                "error": "AI video diffusion could not generate frames. Check CUDA GPU VRAM and connection.",
                 "output_path": "",
                 "seed": actual_seed,
                 "duration": target_duration,
@@ -313,9 +313,6 @@ class LightX2VEngine(BaseVideoEngine):
         target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
-        # Calculate proper time stretch factor from raw video's native duration
-        # CogVideoX: 49 frames @ 8fps = ~6.125s → stretch to target_duration
-        # ModelScope: 24 frames @ 8fps = 3.0s → stretch to target_duration
         raw_fps = 8
         if _ACTIVE_MODEL_NAME and "CogVideo" in _ACTIVE_MODEL_NAME:
             raw_duration = 49.0 / raw_fps  # ~6.125s
@@ -347,13 +344,12 @@ class LightX2VEngine(BaseVideoEngine):
                 enhance_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300
             )
             if result.returncode != 0:
-                logger.warning(f"FFmpeg enhance failed, copying raw: {result.stderr[:200]}")
+                logger.warning(f"FFmpeg enhance notice: {result.stderr[:200]}")
                 shutil.copy(str(raw_temp_video), str(out_file))
         except Exception as e:
-            logger.warning(f"FFmpeg error ({e}), using raw video")
+            logger.warning(f"FFmpeg notice ({e}), using raw video")
             shutil.copy(str(raw_temp_video), str(out_file))
 
-        # Clean up raw temp
         if raw_temp_video.exists():
             try:
                 raw_temp_video.unlink()
@@ -405,7 +401,7 @@ class LightX2VEngine(BaseVideoEngine):
             import torch
             cuda_ok = torch.cuda.is_available()
             gpu = torch.cuda.get_device_name(0) if cuda_ok else "none"
-            vram = torch.cuda.get_device_properties(0).total_mem / (1024**3) if cuda_ok else 0
+            vram = torch.cuda.get_device_properties(0).total_memory / (1024**3) if cuda_ok else 0
         except Exception:
             cuda_ok, gpu, vram = False, "none", 0
 
