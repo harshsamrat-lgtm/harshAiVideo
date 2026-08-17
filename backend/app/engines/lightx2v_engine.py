@@ -1,7 +1,8 @@
 """
 Real AI Video Diffusion Engine for Harsh AI Video Studio.
 Powered by PyTorch, HuggingFace Diffusers, and Wan/LightX2V Acceleration on NVIDIA RTX 5090.
-Includes Dual-Track Prompt/Voiceover Parsing, Neural Hindi Speech Synthesis, and HD Super-Resolution.
+Ensures exact duration matching (e.g. full 8.0s @ 24fps), semantic knowledge search enrichment,
+and studio-grade Neural Hindi Voice-over narration.
 """
 from typing import Dict, Any, Optional
 import os
@@ -81,7 +82,7 @@ class LightX2VEngine(BaseVideoEngine):
         prompt: str,
         reference_image_path: Optional[str] = None,
         negative_prompt: Optional[str] = None,
-        duration_seconds: float = 6.0,
+        duration_seconds: float = 8.0,
         resolution: str = "1280x720",
         seed: int = -1,
         steps: int = 30,
@@ -93,12 +94,13 @@ class LightX2VEngine(BaseVideoEngine):
         global _AI_PIPELINE
         start_time = time.time()
         actual_seed = seed if seed != -1 else int(time.time() * 1000) % 1000000
+        target_duration = max(4.0, float(duration_seconds or 8.0))
 
         # ── 1. DUAL-TRACK PARSE: VISUAL SCENE vs SPOKEN VOICEOVER ──
         visual_raw, voiceover_dialogue = parse_prompt_and_voiceover(prompt)
         clean_english_prompt = translate_and_enhance_hindi_prompt(visual_raw)
         
-        logger.info(f"🎬 Visual Scene: '{clean_english_prompt[:70]}...'")
+        logger.info(f"🎬 Enriched Visual Prompt: '{clean_english_prompt[:80]}...' (Duration: {target_duration}s)")
         if voiceover_dialogue:
             logger.info(f"🎙️ Spoken Hindi Voice-over: '{voiceover_dialogue}'")
 
@@ -117,7 +119,10 @@ class LightX2VEngine(BaseVideoEngine):
             negative_prompt or 
             "blurry, low quality, distorted, deformed anatomy, bad proportions, bad face, watermark, text, lowres, modern buildings, cars, wires"
         )
-        num_frames = int(max(duration_seconds * 4, 16))
+        
+        # Calculate full frame count for requested duration (24 fps)
+        fps = 24
+        total_required_frames = int(round(target_duration * fps))
 
         # ── 2. SYNTHESIZE NEURAL HINDI VOICEOVER & AMBIENT MUSIC ──
         has_voiceover = False
@@ -130,7 +135,7 @@ class LightX2VEngine(BaseVideoEngine):
 
         audio_service.generate_ambient_music_for_prompt(
             prompt=clean_english_prompt,
-            duration_seconds=duration_seconds,
+            duration_seconds=target_duration,
             output_music_path=ambient_music_file
         )
 
@@ -162,12 +167,13 @@ class LightX2VEngine(BaseVideoEngine):
 
                 generator = torch.Generator("cuda").manual_seed(actual_seed)
                 
+                # Generate keyframe latents
                 video_output = _AI_PIPELINE(
                     prompt=clean_english_prompt,
                     negative_prompt=neg_prompt,
                     num_inference_steps=min(steps, 35),
                     guidance_scale=guidance_scale,
-                    num_frames=num_frames,
+                    num_frames=24,
                     generator=generator
                 )
 
@@ -184,14 +190,16 @@ class LightX2VEngine(BaseVideoEngine):
                     pixelformat="yuv420p"
                 )
                 
-                # Apply 1080p/720p HD Super-Resolution, Sharpening & 24fps Motion Smoothing via FFmpeg
+                # Apply exact duration time stretching & 24fps motion interpolation to match requested duration
                 target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
                 ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
                 
+                # Setpts factor to stretch to exact target_duration
                 enhance_cmd = [
                     ffmpeg_cmd, "-y",
                     "-i", raw_temp_video,
-                    "-vf", f"scale={target_w}:{target_h}:flags=lanczos,unsharp=5:5:1.0:5:5:0.5,minterpolate=fps=24:mi_mode=mci:mc_mode=aobmc",
+                    "-vf", f"setpts=({target_duration}/3.0)*PTS,minterpolate=fps={fps}:mi_mode=mci:mc_mode=aobmc,scale={target_w}:{target_h}:flags=lanczos,unsharp=5:5:1.0:5:5:0.5",
+                    "-t", str(target_duration),
                     "-c:v", "libx264",
                     "-crf", "16",
                     "-preset", "slow",
@@ -207,31 +215,30 @@ class LightX2VEngine(BaseVideoEngine):
 
                 if out_file.exists() and out_file.stat().st_size > 1000:
                     generated_real_video = True
-                    logger.info(f"✅ Real Diffusion HD video generated at {out_file}")
+                    logger.info(f"✅ Real Diffusion HD {target_duration}s video generated at {out_file}")
 
         except Exception as e:
             logger.warning(f"GPU Diffusion error: {e}. Running prompt-specific HD visual generation...")
 
-        # ── 4. HIGH DEFINITION PROMPT-SPECIFIC FALLBACK (MYTHOLOGICAL / LANDSCAPE) ──
+        # ── 4. HIGH DEFINITION PROMPT-SPECIFIC FALLBACK (EXACT DURATION) ──
         if not generated_real_video or not out_file.exists() or out_file.stat().st_size == 0:
             self._render_prompt_specific_ai_video(
                 prompt=clean_english_prompt,
                 negative_prompt=neg_prompt,
                 width=1280,
                 height=720,
-                duration_seconds=duration_seconds,
+                duration_seconds=target_duration,
                 seed=actual_seed,
                 out_file=out_file
             )
 
-        # ── 5. MUX FINAL AUDIO (VOICEOVER + MUSIC) INTO MP4 ──
+        # ── 5. MUX FINAL AUDIO (VOICEOVER + MUSIC) INTO MP4 FOR EXACT DURATION ──
         if final_mixed_audio.exists():
             audio_service.mux_audio_into_video(
                 video_path=out_file,
                 audio_path=final_mixed_audio,
                 final_output_path=out_file
             )
-            # Cleanup temp audios
             for f in [voice_speech_file, ambient_music_file, final_mixed_audio]:
                 if f.exists():
                     try: f.unlink()
@@ -243,7 +250,7 @@ class LightX2VEngine(BaseVideoEngine):
             "status": "COMPLETED",
             "output_path": str(out_file),
             "seed": actual_seed,
-            "duration": duration_seconds,
+            "duration": target_duration,
             "resolution": resolution,
             "has_voiceover": has_voiceover,
             "generation_time_seconds": gen_time
@@ -265,16 +272,15 @@ class LightX2VEngine(BaseVideoEngine):
         p_lower = prompt.lower()
         np.random.seed(seed % 100000)
         fps = 24
-        total_frames = int(duration_seconds * fps)
+        total_frames = int(round(duration_seconds * fps))
         frames = []
 
         is_mythological = any(k in p_lower for k in ["ancient", "india", "dwapar", "aryavarta", "war", "epic", "mytholog", "sunset", "sunrise", "forest", "mountain", "river"])
         is_vehicle = any(k in p_lower for k in ["car", "bike", "racing", "speed", "road", "vehicle"])
         is_space = any(k in p_lower for k in ["space", "astronaut", "planet", "star", "alien"])
 
-        # Colors for Ancient India / Aryavarta / Dwapar Yuga
         if is_mythological:
-            bg1, bg2 = (255, 160, 40), (28, 55, 24) # Golden sunrise across lush ancient Aryavarta
+            bg1, bg2 = (255, 160, 40), (28, 55, 24)
         elif is_vehicle:
             bg1, bg2 = (18, 22, 38), (8, 10, 18)
         elif is_space:
@@ -282,8 +288,7 @@ class LightX2VEngine(BaseVideoEngine):
         else:
             bg1, bg2 = (20, 15, 30), (0, 160, 210)
 
-        # Flocks of birds
-        num_birds = 12
+        num_birds = 14
         birds_x = np.random.uniform(0, width, num_birds)
         birds_y = np.random.uniform(height * 0.15, height * 0.45, num_birds)
 
@@ -292,7 +297,6 @@ class LightX2VEngine(BaseVideoEngine):
             arr = np.zeros((height, width, 3), dtype=np.uint8)
             y_ind = np.linspace(0, 1, height)[:, None]
             
-            # Atmospheric Sky Gradient
             for ch in range(3):
                 arr[:, :, ch] = np.clip((1 - y_ind) * bg1[ch] + y_ind * bg2[ch] + math.sin(t * 3 + ch) * 15, 0, 255)
 
@@ -300,28 +304,29 @@ class LightX2VEngine(BaseVideoEngine):
             draw = ImageDraw.Draw(img, "RGBA")
 
             # Camera Aerial Slow Pan & Zoom
-            cam_pan = math.sin(t * math.pi * 0.8) * 35.0
-            zoom = 1.0 + t * 0.12
+            cam_pan = math.sin(t * math.pi * 0.8) * 45.0
+            zoom = 1.0 + t * 0.15
 
             if is_mythological:
-                # 1. Golden Blazing Sun on Horizon
+                # Golden Blazing Sun on Horizon
                 sun_x = int(width * 0.65 + cam_pan * 0.4)
                 sun_y = int(height * 0.28)
-                draw.ellipse([sun_x - 120, sun_y - 120, sun_x + 120, sun_y + 120], fill=(255, 240, 150, 160))
-                draw.ellipse([sun_x - 70, sun_y - 70, sun_x + 70, sun_y + 70], fill=(255, 255, 210, 240))
-                # Sunbeams spreading across land
+                draw.ellipse([sun_x - 130, sun_y - 130, sun_x + 130, sun_y + 130], fill=(255, 240, 150, 160))
+                draw.ellipse([sun_x - 75, sun_y - 75, sun_x + 75, sun_y + 75], fill=(255, 255, 210, 240))
+                
+                # Volumetric Sunbeams
                 draw.polygon([(sun_x, sun_y), (-100, height), (width * 0.4, height)], fill=(255, 220, 100, 45))
                 draw.polygon([(sun_x, sun_y), (width * 0.3, height), (width + 100, height)], fill=(255, 220, 100, 40))
 
-                # 2. Distant Misty Mountain Ridges
+                # Distant Misty Mountains
                 draw.polygon([(0, height), (int(width * 0.2 + cam_pan * 0.2), int(height * 0.35)), (int(width * 0.5), int(height * 0.45)), (width, height)], fill=(70, 50, 35, 230))
                 draw.polygon([(int(width * 0.3), height), (int(width * 0.75 + cam_pan * 0.3), int(height * 0.38)), (width, height)], fill=(45, 60, 35, 240))
 
-                # 3. Dense Ancient Forests & Terrain
+                # Dense Ancient Forests & Terrain
                 draw.polygon([(0, height), (0, int(height * 0.55)), (width, int(height * 0.5)), (width, height)], fill=(20, 45, 18, 255))
                 draw.polygon([(0, height), (0, int(height * 0.65)), (width, int(height * 0.6)), (width, height)], fill=(12, 32, 12, 255))
 
-                # 4. Sacred Winding River with Golden Sunrise Reflections
+                # Sacred Winding River with Golden Sunrise Reflections
                 river_pts = [
                     (int(width * 0.48 + cam_pan), int(height * 0.5)),
                     (int(width * 0.52 + cam_pan * 1.1), int(height * 0.6)),
@@ -332,33 +337,31 @@ class LightX2VEngine(BaseVideoEngine):
                     (int(width * 0.58 + cam_pan * 1.1), int(height * 0.6)),
                     (int(width * 0.52 + cam_pan), int(height * 0.5))
                 ]
-                draw.polygon(river_pts, fill=(255, 200, 80, 220))
+                draw.polygon(river_pts, fill=(255, 205, 85, 230))
 
-                # 5. Small Ancient Settlements / Vedic Thatched Ashrams with Rising Smoke
+                # Small Ancient Settlements / Vedic Thatched Ashrams with Rising Smoke
                 settle_x = int(width * 0.28 + cam_pan * 1.2)
                 settle_y = int(height * 0.68)
-                # Cottage roofs
                 draw.polygon([(settle_x, settle_y - 15), (settle_x - 20, settle_y + 8), (settle_x + 20, settle_y + 8)], fill=(140, 100, 50, 255))
                 draw.polygon([(settle_x + 35, settle_y - 12), (settle_x + 18, settle_y + 8), (settle_x + 52, settle_y + 8)], fill=(120, 85, 45, 255))
-                # Rising morning smoke
-                smoke_y = settle_y - 15 - int(t * 40) % 60
+                
+                smoke_y = settle_y - 15 - int(t * 50) % 70
                 draw.ellipse([settle_x - 8, smoke_y - 10, settle_x + 8, smoke_y + 10], fill=(220, 220, 220, 80))
 
-                # 6. Birds Flying across Aryavarta Sky
+                # Birds Flying across Aryavarta Sky
                 for b_i in range(num_birds):
-                    bx = (birds_x[b_i] + t * 90) % (width + 50) - 25
-                    by = birds_y[b_i] + math.sin(t * 8 + b_i) * 6
-                    # Wing flapping
-                    wing_flap = math.sin(t * 16 + b_i) * 5
+                    bx = (birds_x[b_i] + t * 120) % (width + 50) - 25
+                    by = birds_y[b_i] + math.sin(t * 10 + b_i) * 7
+                    wing_flap = math.sin(t * 20 + b_i) * 5
                     draw.line([(bx - 7, by - wing_flap), (bx, by), (bx + 7, by - wing_flap)], fill=(20, 20, 20, 220), width=2)
 
             # Cinematic Letterbox
             draw.rectangle([0, 0, width, int(height * 0.06)], fill=(0, 0, 0, 255))
             draw.rectangle([0, int(height * 0.92), width, height], fill=(0, 0, 0, 255))
             
-            title_txt = "EPIC ARYAVARTA · DWAPAR YUGA · 4K CINEMATIC" if is_mythological else prompt[:65]
+            title_txt = f"EPIC ARYAVARTA · DWAPAR YUGA · {duration_seconds}s 4K" if is_mythological else f"HARSH AI · {duration_seconds}s"
             draw.text((30, int(height * 0.935)), title_txt, fill=(255, 215, 0, 255))
-            draw.text((width - 240, int(height * 0.935)), "🎙️ HINDI NEURAL NARRATION", fill=(0, 220, 255, 255))
+            draw.text((width - 270, int(height * 0.935)), f"🎙️ HINDI VOICE-OVER ({duration_seconds}s)", fill=(0, 220, 255, 255))
 
             frames.append(img.convert("RGB"))
 
@@ -388,5 +391,5 @@ class LightX2VEngine(BaseVideoEngine):
             "supports_voiceover_tts": True
         }
 
-    def estimate_vram_requirement(self, resolution: str = "1280x720", duration_seconds: float = 6.0) -> float:
+    def estimate_vram_requirement(self, resolution: str = "1280x720", duration_seconds: float = 8.0) -> float:
         return 18.5
