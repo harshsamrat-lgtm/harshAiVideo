@@ -620,8 +620,9 @@
               </video>
             </div>
 
-            <div style="display: flex; gap: 1rem;">
-              <a class="btn btn-gold" id="video-dl-btn" href="#" download style="flex: 1;">⬇️ MP4 वीडियो डाउनलोड करें</a>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <a class="btn btn-gold" id="video-dl-btn" href="#" download style="flex: 1;">⬇️ MP4 वीडियो डाउनलोड करें (ऑडियो सहित)</a>
+              <button class="btn btn-bhagwa" onclick="unmuteVideo()">🔊 साउंड ऑन करें</button>
               <button class="btn btn-ghost" onclick="startGeneration()">🔁 दोबारा बनाएं</button>
             </div>
           </div>
@@ -885,12 +886,27 @@
 
       if (src && vid) {
         src.src = videoApiUrl;
+        vid.volume = 1.0;
+        vid.muted = false;
         vid.load();
-        vid.play().catch(() => {});
+        vid.play().catch(() => {
+          // If browser policy blocks autoplay with sound, play muted and let user click unmute
+          vid.muted = true;
+          vid.play().catch(() => {});
+        });
       }
       if (dlBtn) {
         dlBtn.href = videoApiUrl;
         dlBtn.download = filename;
+      }
+    }
+
+    function unmuteVideo() {
+      const vid = document.getElementById('studio-video');
+      if (vid) {
+        vid.muted = false;
+        vid.volume = 1.0;
+        vid.play().catch(() => {});
       }
     }
 

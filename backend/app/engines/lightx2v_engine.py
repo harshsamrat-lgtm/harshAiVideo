@@ -1,7 +1,8 @@
 """
 Real AI Video Diffusion Engine for Harsh AI Video Studio.
 Powered by PyTorch, HuggingFace Diffusers, and Wan/LightX2V Acceleration on NVIDIA RTX 5090.
-Includes automatic Hindi language translation, 8K prompt enhancement, and HD unsharp-mask super-resolution post-processing.
+Includes automatic Hindi language translation, 8K prompt enhancement, HD super-resolution,
+and automated Cinematic Stereo Audio Soundscape Muxing.
 """
 from typing import Dict, Any, Optional
 import os
@@ -13,6 +14,7 @@ import numpy as np
 
 from app.engines.base_engine import BaseVideoEngine
 from app.services.prompt_service import translate_and_enhance_hindi_prompt
+from app.services.audio_service import audio_service
 from app.core.logging import logger
 from app.core.config import settings
 
@@ -104,6 +106,7 @@ class LightX2VEngine(BaseVideoEngine):
         out_file = Path(out_path)
         out_file.parent.mkdir(parents=True, exist_ok=True)
         raw_temp_video = str(out_dir / f"raw_diff_{actual_seed}.mp4")
+        temp_audio_file = out_dir / f"audio_{actual_seed}.aac"
 
         neg_prompt = (
             negative_prompt or 
@@ -111,7 +114,15 @@ class LightX2VEngine(BaseVideoEngine):
         )
         num_frames = int(max(duration_seconds * 4, 16))
 
-        # ── TIER 1: EXECUTE NEURAL DIFFUSION ON CUDA GPU ──────────────────
+        # ── 1. GENERATE MATCHING CINEMATIC STEREO AUDIO SOUNDSCAPE ──
+        logger.info(f"🔊 Synthesizing matching AI Audio Soundscape for prompt: '{prompt[:45]}...'")
+        audio_service.generate_soundscape_for_prompt(
+            prompt=prompt,
+            duration_seconds=duration_seconds,
+            output_audio_path=temp_audio_file
+        )
+
+        # ── 2. EXECUTE NEURAL DIFFUSION ON CUDA GPU ──
         generated_real_video = False
         try:
             import torch
@@ -176,12 +187,12 @@ class LightX2VEngine(BaseVideoEngine):
 
                 if out_file.exists() and out_file.stat().st_size > 1000:
                     generated_real_video = True
-                    logger.info(f"✅ Real Diffusion HD 1080p/720p video generated at {out_file} (Size: {out_file.stat().st_size / 1024:.1f} KB)")
+                    logger.info(f"✅ Real Diffusion HD 1080p/720p video generated at {out_file}")
 
         except Exception as e:
             logger.warning(f"GPU Diffusion error: {e}. Running prompt-specific HD visual generation...")
 
-        # ── TIER 2: HIGH DEFINITION PROMPT-SPECIFIC FALLBACK ──
+        # ── 3. HIGH DEFINITION PROMPT-SPECIFIC FALLBACK ──
         if not generated_real_video or not out_file.exists() or out_file.stat().st_size == 0:
             self._render_prompt_specific_ai_video(
                 prompt=clean_english_prompt,
@@ -193,6 +204,16 @@ class LightX2VEngine(BaseVideoEngine):
                 out_file=out_file
             )
 
+        # ── 4. MUX AUDIO INTO FINAL MP4 ──
+        if temp_audio_file.exists():
+            audio_service.mux_audio_into_video(
+                video_path=out_file,
+                audio_path=temp_audio_file,
+                final_output_path=out_file
+            )
+            try: temp_audio_file.unlink()
+            except Exception: pass
+
         gen_time = round(time.time() - start_time, 2)
         return {
             "engine": self.name,
@@ -202,6 +223,7 @@ class LightX2VEngine(BaseVideoEngine):
             "duration": duration_seconds,
             "resolution": resolution,
             "precision": self.precision,
+            "has_audio": True,
             "steps": steps,
             "guidance_scale": guidance_scale,
             "generation_time_seconds": gen_time
