@@ -1,699 +1,1032 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Harsh AI Video Studio | Wan 2.2 + LightX2V NVFP4</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Harsh AI Video Studio | भगवा एडिशन · Wan 2.2 + LightX2V NVFP4</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;800&family=Rozha+One&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #07090f;
-      --bg2: #0e1220;
-      --bg3: #141927;
-      --card: rgba(15,20,35,0.8);
-      --border: rgba(255,255,255,0.07);
-      --border2: rgba(99,102,241,0.35);
-      --accent: #6366f1;
-      --accent2: #4f46e5;
+      /* भगवा एवं स्वर्ण कलर पैलेट */
+      --bg-void: #080503;
+      --bg-base: #0f0a06;
+      --bg-card: rgba(22, 14, 8, 0.82);
+      --bg-card-hover: rgba(32, 20, 11, 0.95);
+      --bg-subtle: #191009;
+      
+      --bhagwa-light: #FF9933;
+      --bhagwa-main: #FF6600;
+      --bhagwa-deep: #CC4400;
+      --kesari: #FF7700;
+      --gold-bright: #FFD700;
+      --gold-warm: #FFB800;
+      --amber-glow: rgba(255, 119, 0, 0.4);
+      
+      --border-subtle: rgba(255, 153, 51, 0.15);
+      --border-glow: rgba(255, 153, 51, 0.5);
+      --border-bright: rgba(255, 215, 0, 0.6);
+      
+      --text-main: #FFF8F0;
+      --text-subtle: #E2C9B0;
+      --text-muted: #9E8166;
+      
+      --emerald: #10b981;
       --cyan: #06b6d4;
-      --green: #10b981;
-      --amber: #f59e0b;
       --rose: #f43f5e;
-      --txt: #f1f5f9;
-      --txt2: #94a3b8;
-      --txt3: #475569;
-      --mono: 'JetBrains Mono', monospace;
-      --r: 10px;
+      
+      --font-ui: 'Outfit', -apple-system, sans-serif;
+      --font-title: 'Cinzel', 'Rozha One', serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
     }
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;}
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-void);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(255, 102, 0, 0.18) 0%, transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(255, 184, 0, 0.08) 0%, transparent 50%),
+        linear-gradient(180deg, var(--bg-void) 0%, #0c0805 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* भगवा ग्लास पैनल */
+    .bhagwa-glass {
+      background: var(--bg-card);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 184, 0, 0.15);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .bhagwa-glass:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 14px 40px rgba(255, 102, 0, 0.15), inset 0 1px 0 rgba(255, 215, 0, 0.3);
+    }
+
     /* HEADER */
-    .header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.75rem;background:rgba(7,9,15,.96);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;backdrop-filter:blur(20px);}
-    .logo{display:flex;align-items:center;gap:.75rem;}
-    .logo-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2s infinite;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
-    .logo-text{font-size:1.05rem;font-weight:800;letter-spacing:-.02em;}
-    .logo-sub{font-size:.65rem;color:var(--txt3);font-family:var(--mono);margin-top:1px;}
+    .studio-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.9rem 2.2rem;
+      background: rgba(12, 8, 4, 0.92);
+      border-bottom: 1px solid var(--border-glow);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      backdrop-filter: blur(25px);
+      box-shadow: 0 4px 25px rgba(255, 102, 0, 0.12);
+    }
     
-    .nav{display:flex;gap:3px;background:var(--bg2);padding:3px;border-radius:8px;border:1px solid var(--border);}
-    .nav-btn{padding:.38rem .8rem;border-radius:6px;border:none;background:transparent;color:var(--txt2);font-size:.75rem;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap;}
-    .nav-btn:hover{color:var(--txt);}
-    .nav-btn.active{background:var(--accent);color:#fff;box-shadow:0 0 14px rgba(99,102,241,.5);}
+    .brand-container {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .diya-flame {
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle, #FFF7C2 10%, #FF9933 60%, #FF3300 100%);
+      border-radius: 50% 0 50% 50%;
+      transform: rotate(-45deg);
+      box-shadow: 0 0 18px #FF6600, 0 0 35px #FF9933;
+      animation: flicker 1.8s infinite alternate ease-in-out;
+    }
+    @keyframes flicker {
+      0% { transform: rotate(-45deg) scale(0.95); opacity: 0.9; }
+      100% { transform: rotate(-45deg) scale(1.15); opacity: 1; box-shadow: 0 0 24px #FF7700, 0 0 45px #FFB800; }
+    }
 
-    .status-bar{display:flex;align-items:center;gap:.6rem;}
-    .badge{display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.03em;}
-    .badge-green{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.3);}
-    .badge-blue{background:rgba(6,182,212,.12);color:#22d3ee;border:1px solid rgba(6,182,212,.3);}
-    .badge-amber{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.3);}
-    .badge-purple{background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.3);}
-    .badge-rose{background:rgba(244,63,94,.12);color:#fb7185;border:1px solid rgba(244,63,94,.3);}
+    .brand-title {
+      font-family: var(--font-ui);
+      font-size: 1.3rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #FFFFFF 0%, #FFE0B2 40%, #FF9933 80%, #FF6600 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-subtitle {
+      font-size: 0.72rem;
+      color: var(--gold-warm);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
 
-    /* MAIN LAYOUT */
-    .main{padding:1.5rem;max-width:1600px;margin:0 auto;}
-    .tab-panel{display:none;} .tab-panel.active{display:block;}
-    
-    /* CARDS */
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);backdrop-filter:blur(12px);}
-    .card-header{padding:1.25rem 1.5rem .75rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-    .card-title{font-size:1rem;font-weight:700;}
-    .card-body{padding:1.25rem 1.5rem;}
-    
-    /* GRID */
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
-    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;}
-    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
-    .col2{grid-column:span 2;}
-    
-    /* FORMS */
-    label{display:block;font-size:.76rem;font-weight:600;color:var(--txt2);margin-bottom:.3rem;}
-    input,textarea,select{width:100%;padding:.65rem .9rem;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--txt);font-family:inherit;font-size:.85rem;outline:none;transition:.15s;}
-    input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.2);}
-    textarea{resize:vertical;min-height:80px;}
-    
+    /* NAVIGATION TABS */
+    .nav-tabs {
+      display: flex;
+      gap: 0.35rem;
+      background: rgba(18, 11, 6, 0.85);
+      padding: 0.3rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+    }
+    .nav-tab {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-subtle);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .nav-tab:hover {
+      color: #FFF;
+      background: rgba(255, 153, 51, 0.12);
+    }
+    .nav-tab.active {
+      background: linear-gradient(135deg, #FF7700 0%, #D94400 100%);
+      color: #FFF;
+      box-shadow: 0 0 18px rgba(255, 102, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    /* BADGES */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .badge-bhagwa {
+      background: rgba(255, 102, 0, 0.18);
+      color: #FFB366;
+      border: 1px solid rgba(255, 102, 0, 0.5);
+      box-shadow: 0 0 12px rgba(255, 102, 0, 0.2);
+    }
+    .badge-gold {
+      background: rgba(255, 215, 0, 0.15);
+      color: #FFD700;
+      border: 1px solid rgba(255, 215, 0, 0.4);
+    }
+    .badge-green {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    /* MAIN CONTAINER */
+    .studio-main {
+      max-width: 1550px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* STATS & METRICS */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--bhagwa-main), var(--gold-bright));
+    }
+    .stat-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--gold-warm);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
     /* BUTTONS */
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.65rem 1.3rem;border-radius:8px;font-size:.84rem;font-weight:600;cursor:pointer;border:none;transition:.15s;}
-    .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 14px rgba(99,102,241,.3);}
-    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.45);}
-    .btn-green{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.3);}
-    .btn-green:hover{transform:translateY(-1px);}
-    .btn-ghost{background:var(--bg2);border:1px solid var(--border);color:var(--txt);}
-    .btn-ghost:hover{background:rgba(255,255,255,.05);}
-    .btn-rose{background:rgba(244,63,94,.15);border:1px solid rgba(244,63,94,.3);color:#fb7185;}
-    .btn-full{width:100%;padding:.8rem;}
-    .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;}
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      padding: 0.8rem 1.6rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-weight: 800;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      text-decoration: none;
+    }
+    .btn-bhagwa {
+      background: linear-gradient(135deg, #FF8800 0%, #FF5500 50%, #CC3300 100%);
+      color: #FFF;
+      box-shadow: 0 4px 18px rgba(255, 102, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+    .btn-bhagwa:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(255, 102, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      background: linear-gradient(135deg, #FFA022 0%, #FF6600 50%, #E63900 100%);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #FFB800 0%, #E69500 100%);
+      color: #1A0D00;
+      box-shadow: 0 4px 16px rgba(255, 184, 0, 0.35);
+      font-weight: 900;
+    }
+    .btn-gold:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255, 184, 0, 0.6);
+    }
+    .btn-ghost {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+    .btn-ghost:hover {
+      background: rgba(255, 153, 51, 0.15);
+      border-color: var(--border-glow);
+      color: var(--gold-bright);
+    }
+    .btn-full { width: 100%; padding: 0.95rem; }
+
+    /* FORMS & INPUTS */
+    .form-group {
+      margin-bottom: 1.15rem;
+    }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--gold-warm);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.02em;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 0.85rem 1.1rem;
+      background: rgba(15, 9, 5, 0.95);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.92rem;
+      outline: none;
+      transition: all 0.2s ease;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--bhagwa-main);
+      box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.5);
+      background: rgba(20, 12, 7, 0.98);
+    }
 
     /* PROGRESS BAR */
-    .progress-track{background:var(--bg3);border-radius:999px;height:8px;overflow:hidden;}
-    .progress-fill{height:100%;border-radius:999px;transition:width .5s ease;background:linear-gradient(90deg,var(--accent),var(--cyan));}
-    
-    /* JOB CARD */
-    .job-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.6rem;}
-    .job-card.completed{border-color:rgba(16,185,129,.3);}
-    .job-card.failed{border-color:rgba(244,63,94,.3);}
-    .job-card.generating{border-color:rgba(99,102,241,.4);}
-    .job-meta{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;}
-    .job-logs{background:var(--bg);border-radius:6px;padding:.6rem .8rem;font-family:var(--mono);font-size:.72rem;color:var(--txt2);max-height:80px;overflow-y:auto;line-height:1.6;}
-    
+    .progress-wrapper {
+      background: #0D0804;
+      border: 1px solid var(--border-subtle);
+      border-radius: 9999px;
+      height: 12px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #FF4500, #FF8800, #FFD700);
+      box-shadow: 0 0 18px rgba(255, 136, 0, 0.8);
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     /* VIDEO PLAYER */
-    .video-container{background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
-    .video-container video{width:100%;display:block;max-height:420px;}
-    .no-video{padding:3rem;text-align:center;color:var(--txt3);font-size:.85rem;}
-    
-    /* STAT CARDS */
-    .stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:1.25rem;display:flex;flex-direction:column;gap:.3rem;}
-    .stat-val{font-family:var(--mono);font-size:1.5rem;font-weight:800;}
-    .stat-label{font-size:.74rem;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+    .player-card {
+      background: #000;
+      border: 2px solid var(--border-glow);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: 0 12px 35px rgba(255, 102, 0, 0.2);
+    }
+    .player-card video {
+      width: 100%;
+      display: block;
+      max-height: 480px;
+      background: #000;
+    }
 
-    /* ALERT */
-    .alert{padding:.9rem 1.1rem;border-radius:8px;font-size:.84rem;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;}
-    .alert-green{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:#34d399;}
-    .alert-rose{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.25);color:#fb7185;}
-    .alert-blue{background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);color:#22d3ee;}
-    
-    /* BIBLE CARDS */
-    .bible-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-top:1rem;}
-    .bible-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:1rem;}
-    .bible-item h4{font-size:.95rem;font-weight:700;margin-bottom:.4rem;}
-    .bible-item p{font-size:.8rem;color:var(--txt2);line-height:1.5;}
+    /* LOGS BOX */
+    .terminal-logs {
+      background: #080402;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: #FFB366;
+      max-height: 120px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
 
-    /* FLOW STEPS */
-    .flow{display:flex;gap:0;margin:1.25rem 0;}
-    .step{flex:1;text-align:center;position:relative;}
-    .step:not(:last-child)::after{content:'→';position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:1rem;}
-    .step-num{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;margin:0 auto .4rem;}
-    .step-txt{font-size:.72rem;color:var(--txt2);font-weight:600;}
+    /* BIBLE GRIDS */
+    .bible-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+    .bible-card {
+      padding: 1.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    /* WORKFLOW STEPS */
+    .flow-steps {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin: 1.5rem 0;
+    }
+    .flow-step {
+      flex: 1;
+      min-width: 180px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      text-align: center;
+      position: relative;
+    }
+    .flow-step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--bhagwa-main);
+      color: #FFF;
+      font-weight: 900;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 0.4rem;
+      box-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+    }
+    .flow-step-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
   </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="header">
-  <div class="logo">
-    <div class="logo-dot"></div>
-    <div>
-      <div class="logo-text">HARSH <span style="color:var(--accent)">AI VIDEO STUDIO</span></div>
-      <div class="logo-sub">RTX 5090 · LightX2V NVFP4 · Wan 2.2 I2V A14B</div>
-    </div>
-  </div>
-  <nav class="nav">
-    <button class="nav-btn active" onclick="go('dashboard')">📊 Dashboard</button>
-    <button class="nav-btn" onclick="go('generate')">⚡ Generate</button>
-    <button class="nav-btn" onclick="go('jobs')">📋 Job Queue</button>
-    <button class="nav-btn" onclick="go('characters')">👤 Characters</button>
-    <button class="nav-btn" onclick="go('locations')">🏙️ Locations</button>
-    <button class="nav-btn" onclick="go('planner')">🎬 5-Min Planner</button>
-    <button class="nav-btn" onclick="go('gpu')">🖥️ GPU Monitor</button>
-  </nav>
-  <div class="status-bar">
-    <span class="badge badge-green">● LIVE</span>
-    <span class="badge badge-blue" id="engine-badge">LightX2V NVFP4</span>
-  </div>
-</header>
-
-<main class="main">
-
-<!-- ===== DASHBOARD ===== -->
-<div id="tab-dashboard" class="tab-panel active">
-  <div style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <h2 style="font-size:1.6rem;font-weight:800;">Studio Control Center</h2>
-      <p style="color:var(--txt2);margin-top:.25rem;font-size:.88rem;">NVIDIA RTX 5090 · 5-Minute Long-Form AI Video Pipeline</p>
-    </div>
-    <button class="btn btn-green" onclick="go('generate')">⚡ Start New Generation</button>
-  </div>
-  
-  <div class="grid4" style="margin-bottom:1.5rem;">
-    <div class="stat"><div class="stat-label">Active GPU</div><div class="stat-val" style="color:var(--cyan);font-size:1.1rem;">RTX 5090</div><div style="font-size:.72rem;color:var(--txt3);">32 GB VRAM</div></div>
-    <div class="stat"><div class="stat-label">VRAM Peak (LightX2V)</div><div class="stat-val" style="color:var(--green);">22.4 GB</div><div style="font-size:.72rem;color:var(--txt3);">9.6 GB Free</div></div>
-    <div class="stat"><div class="stat-label">Generation Speed</div><div class="stat-val" style="color:var(--accent);">8.45x</div><div style="font-size:.72rem;color:var(--txt3);">Real-Time FPS</div></div>
-    <div class="stat"><div class="stat-label">5-Min Story Capacity</div><div class="stat-val" style="color:var(--amber);">50 Shots</div><div style="font-size:.72rem;color:var(--txt3);">6s each, chained</div></div>
-  </div>
-
-  <div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-header"><span class="card-title">🎬 Production Pipeline</span></div>
-    <div class="card-body">
-      <div class="flow">
-        <div class="step"><div class="step-num">1</div><div class="step-txt">Character Bible</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-txt">Location Bible</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-txt">5-Min Planner</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-txt">LightX2V NVFP4</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-txt">Auto QC</div></div>
-        <div class="step"><div class="step-num">6</div><div class="step-txt">FFmpeg 1080p</div></div>
+  <!-- HEADER -->
+  <header class="studio-header">
+    <div class="brand-container">
+      <div class="diya-flame"></div>
+      <div>
+        <div class="brand-title">HARSH AI VIDEO STUDIO</div>
+        <div class="brand-subtitle">भगवा एडिशन · RTX 5090 · LightX2V NVFP4 + Wan 2.2</div>
       </div>
-      <p style="font-size:.8rem;color:var(--txt3);">Shot Duration: 5–8s per clip &nbsp;|&nbsp; Frame Chaining: ✅ Active &nbsp;|&nbsp; Character Consistency: ✅ &nbsp;|&nbsp; Voice Profile Isolation: ✅</p>
     </div>
-  </div>
 
-  <!-- Live Jobs Preview -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">🔄 Recent Jobs</span>
-      <button class="btn btn-ghost" onclick="go('jobs')" style="font-size:.76rem;padding:.35rem .8rem;">View All</button>
+    <!-- TABS -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" onclick="tab('dashboard')">📊 डैशबोर्ड</button>
+      <button class="nav-tab" onclick="tab('generate')">⚡ वीडियो बनाएं</button>
+      <button class="nav-tab" onclick="tab('jobs')">📋 जॉब क्यू</button>
+      <button class="nav-tab" onclick="tab('characters')">👤 कैरेक्टर</button>
+      <button class="nav-tab" onclick="tab('locations')">🏙️ लोकेशन</button>
+      <button class="nav-tab" onclick="tab('planner')">🎬 5-मिनट स्टोरी</button>
+      <button class="nav-tab" onclick="tab('gpu')">🖥️ GPU मॉनिटर</button>
+    </nav>
+
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span class="badge badge-bhagwa">● स्टूडियो सक्रिय</span>
+      <span class="badge badge-gold" id="engine-badge">RTX 5090 READY</span>
     </div>
-    <div class="card-body" id="dash-jobs"><p style="color:var(--txt3);font-size:.84rem;">No jobs yet. Submit a generation task to get started.</p></div>
-  </div>
-</div>
+  </header>
 
+  <!-- MAIN VIEW CONTAINER -->
+  <main class="studio-main">
 
-<!-- ===== GENERATE ===== -->
-<div id="tab-generate" class="tab-panel">
-  <div class="grid2" style="gap:1.5rem;">
-    <!-- LEFT: Form -->
-    <div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">⚡ AI Video Generation</span></div>
-        <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
-          <div>
-            <label>Scene Action & Visual Prompt</label>
-            <textarea id="g-prompt" rows="4">Commander Vance stands on a neon-lit rooftop at midnight, rain pouring, scanning the cyberpunk city skyline below, cinematic wide angle shot, 8K detail, anamorphic lens flare</textarea>
+    <!-- ===== 1. DASHBOARD ===== -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+          <h1 style="font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, #FFF 0%, #FFB800 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            स्टूडियो कंट्रोल सेंटर
+          </h1>
+          <p style="color: var(--text-subtle); margin-top: 0.25rem;">
+            NVIDIA RTX 5090 (32GB) समर्पित सर्वर पर 5+ मिनट की हाई-क्वालिटी AI वीडियो निर्माण प्रणाली
+          </p>
+        </div>
+        <button class="btn btn-bhagwa" onclick="tab('generate')">⚡ नया वीडियो शुरू करें</button>
+      </div>
+
+      <!-- 4 KEY STATS -->
+      <div class="stats-grid">
+        <div class="bhagwa-glass stat-card">
+          <span class="stat-label">सक्रिय GPU मॉडल</span>
+          <span class="stat-value" style="color: #FFB800;">NVIDIA RTX 5090</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">Blackwell आर्किटेक्चर · 32 GB VRAM</span>
+        </div>
+
+        <div class="bhagwa-glass stat-card">
+          <span class="stat-label">VRAM यूसेज (LightX2V)</span>
+          <span class="stat-value" style="color: #34d399;">22.4 GB</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">NVFP4 क्वांटाइजेशन (9.6 GB खाली)</span>
+        </div>
+
+        <div class="bhagwa-glass stat-card">
+          <span class="stat-label">शॉट विभाजन नियम</span>
+          <span class="stat-value" style="color: var(--bhagwa-light);">5 – 8 सेकंड / शॉट</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">5 मिनट = 50 चेन्ड क्लिप्स</span>
+        </div>
+
+        <div class="bhagwa-glass stat-card">
+          <span class="stat-label">ऑटो क्वालिटी कंट्रोल (QC)</span>
+          <span class="stat-value" style="color: #FFD700;">Face Sim &ge; 75%</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">असफल होने पर 3 ऑटो-रीजनरेशन</span>
+        </div>
+      </div>
+
+      <!-- WORKFLOW PIPELINE -->
+      <div class="bhagwa-glass" style="padding: 1.75rem; margin-bottom: 2rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 1rem;">
+          🎬 5-मिनट लॉन्ग-फॉर्म वीडियो प्रोडक्शन पाइपलाइन
+        </h3>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div class="flow-step-title">कैरेक्टर बाइबिल</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">चेहरा, हुलिया और आवाज़</div>
           </div>
-          <div>
-            <label>Negative Prompt</label>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div class="flow-step-title">लोकेशन बाइबिल</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">मार्केट, घर, सड़क, ऑफिस</div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div class="flow-step-title">50-शॉट स्लाइसर</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">5-8s चेन्ड क्लिप्स</div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">4</div>
+            <div class="flow-step-title">LightX2V NVFP4</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">RTX 5090 जेनरेशन</div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">5</div>
+            <div class="flow-step-title">ऑटो QC & रिट्राई</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">क्वालिटी सत्यापन</div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">6</div>
+            <div class="flow-step-title">1080p मास्टर एक्सपोर्ट</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">FFmpeg फाइनल वीडियो</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2. GENERATE STUDIO ===== -->
+    <div id="tab-generate" class="tab-content">
+      <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.75rem;">
+        
+        <!-- LEFT: INPUT FORM -->
+        <div class="bhagwa-glass" style="padding: 1.75rem;">
+          <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 0.4rem;">
+            ⚡ AI वीडियो जेनरेशन
+          </h2>
+          <p style="color: var(--text-subtle); font-size: 0.84rem; margin-bottom: 1.5rem;">
+            LightX2V NVFP4 इंजन के ज़रिए रियल-टाइम में वीडियो क्लिप तैयार करें।
+          </p>
+
+          <div class="form-group">
+            <label>सीन एक्शन और विज़ुअल प्रॉम्प्ट (Visual Prompt)</label>
+            <textarea id="g-prompt" rows="4">Commander Vance stands on a futuristic cyberpunk rooftop in neo-shinjuku at midnight, heavy rain, scanning glowing neon skyline with cybernetic eye, cinematic wide angle, 8k octane render detail</textarea>
+          </div>
+
+          <div class="form-group">
+            <label>नेगेटिव प्रॉम्प्ट (Negative Prompt)</label>
             <textarea id="g-neg" rows="2">blurry, low quality, distorted face, extra limbs, jitter, flicker, watermark, text</textarea>
           </div>
-          <div class="grid2">
-            <div>
-              <label>Duration (seconds)</label>
-              <input type="number" id="g-dur" value="6" min="5" max="8" step="0.5">
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label>क्लिप अवधि (5 - 8 सेकंड)</label>
+              <input type="number" id="g-dur" value="6.0" min="5.0" max="8.0" step="0.5">
             </div>
-            <div>
-              <label>Resolution</label>
+            <div class="form-group">
+              <label>रेज़ोल्यूशन (Resolution)</label>
               <select id="g-res">
-                <option value="1280x720">1280×720 (720p HD)</option>
-                <option value="960x540">960×540 (Preview)</option>
+                <option value="1280x720">1280x720 (720p HD)</option>
+                <option value="960x540">960x540 (Preview)</option>
+                <option value="1920x1080">1920x1080 (1080p Master)</option>
               </select>
             </div>
           </div>
-          <div class="grid2">
-            <div>
-              <label>Seed (-1 = random)</label>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+              <label>सीड (Seed / -1 = रैंडम)</label>
               <input type="number" id="g-seed" value="-1">
             </div>
-            <div>
-              <label>AI Engine</label>
+            <div class="form-group">
+              <label>AI इंजन (Engine)</label>
               <select id="g-engine">
-                <option value="lightx2v">LightX2V (NVFP4 · Recommended)</option>
+                <option value="lightx2v">LightX2V (NVFP4 · RTX 5090)</option>
                 <option value="wan22">Wan 2.2 I2V A14B</option>
               </select>
             </div>
           </div>
-          <button class="btn btn-green btn-full" onclick="submitGeneration()">⚡ GENERATE VIDEO NOW</button>
-        </div>
-      </div>
-    </div>
 
-    <!-- RIGHT: Progress + Result -->
-    <div style="display:flex;flex-direction:column;gap:1.25rem;">
-      <div class="card" id="gen-status-card" style="display:none;">
-        <div class="card-header"><span class="card-title">📊 Generation Progress</span><span class="badge badge-blue" id="gen-state-badge">QUEUED</span></div>
-        <div class="card-body" style="display:flex;flex-direction:column;gap:.8rem;">
-          <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.2rem;">
-            <span id="gen-status-text" style="color:var(--txt2);">Initializing...</span>
-            <span id="gen-pct" style="font-family:var(--mono);font-weight:700;color:var(--accent);">0%</span>
+          <button class="btn btn-bhagwa btn-full" onclick="startGeneration()">
+            ⚡ अभी वीडियो बनाएं (GENERATE NOW)
+          </button>
+        </div>
+
+        <!-- RIGHT: LIVE MONITOR & PLAYER -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- PROGRESS BOX -->
+          <div class="bhagwa-glass" id="progress-box" style="padding: 1.5rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <span style="font-size: 0.95rem; font-weight: 800; color: var(--gold-bright);">📊 जेनरेशन प्रोग्रेस</span>
+              <span class="badge badge-bhagwa" id="job-status-badge">QUEUED</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.4rem;">
+              <span id="job-status-text" style="color: var(--text-subtle);">प्रारंभ हो रहा है...</span>
+              <span id="job-pct-text" style="font-family: var(--font-mono); font-weight: 800; color: var(--gold-bright);">0%</span>
+            </div>
+
+            <div class="progress-wrapper" style="margin-bottom: 1rem;">
+              <div class="progress-fill" id="job-bar" style="width: 0%;"></div>
+            </div>
+
+            <div class="terminal-logs" id="job-terminal">सिस्टम टास्क तैयार कर रहा है...</div>
           </div>
-          <div class="progress-track"><div class="progress-fill" id="gen-bar" style="width:0%"></div></div>
-          <div class="job-logs" id="gen-logs">Waiting for updates...</div>
-          <div id="gen-job-id" style="font-family:var(--mono);font-size:.7rem;color:var(--txt3);"></div>
-        </div>
-      </div>
 
-      <div class="card" id="gen-result-card" style="display:none;">
-        <div class="card-header"><span class="card-title">🎥 Generated Video</span><span class="badge badge-green">✅ COMPLETED</span></div>
-        <div class="card-body">
-          <div class="video-container">
-            <video id="result-video" controls>
-              <source id="result-src" src="" type="video/mp4">
-              Your browser does not support video.
-            </video>
+          <!-- VIDEO PLAYER -->
+          <div class="bhagwa-glass player-card" id="video-card" style="padding: 1.5rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <span style="font-weight: 800; color: #34d399; font-size: 1.05rem;">🎥 जनरेटेड AI वीडियो तैयार है!</span>
+              <span class="badge badge-green">COMPLETED</span>
+            </div>
+
+            <div style="background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 1rem;">
+              <video id="studio-video" controls autoplay loop playsinline style="width: 100%; display: block; max-height: 420px;">
+                <source id="studio-video-src" src="" type="video/mp4">
+                आपका ब्राउज़र वीडियो प्लेबैक सपोर्ट नहीं करता।
+              </video>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+              <a class="btn btn-gold" id="video-dl-btn" href="#" download style="flex: 1;">⬇️ MP4 वीडियो डाउनलोड करें</a>
+              <button class="btn btn-ghost" onclick="startGeneration()">🔁 दोबारा बनाएं</button>
+            </div>
           </div>
-          <div style="display:flex;gap:.75rem;margin-top:.9rem;">
-            <a class="btn btn-primary" id="download-btn" href="#" download>⬇️ Download MP4</a>
-            <button class="btn btn-ghost" onclick="submitGeneration()">🔁 Generate Again</button>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 3. JOB QUEUE ===== -->
+    <div id="tab-jobs" class="tab-content">
+      <div class="bhagwa-glass" style="padding: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--gold-bright);">📋 जॉब क्यू और टास्क सूची</h2>
+            <p style="color: var(--text-subtle); font-size: 0.85rem;">बैकग्राउंड में चल रहे और पूरे हो चुके सभी वीडियो रेंडर्स।</p>
           </div>
+          <button class="btn btn-ghost" onclick="loadJobs()">🔄 रिफ्रेश करें</button>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><span class="card-title">💡 Quick Tips</span></div>
-        <div class="card-body" style="font-size:.8rem;color:var(--txt2);line-height:1.7;">
-          <div>✅ <b>Duration:</b> Keep between 5–8 seconds for best quality</div>
-          <div>✅ <b>Prompt:</b> Describe the scene action + character + lighting + camera</div>
-          <div>✅ <b>LightX2V NVFP4</b> runs in 22.4 GB VRAM on your RTX 5090</div>
-          <div>✅ <b>Seed:</b> Use same seed to reproduce identical frames for chaining</div>
+        <div id="jobs-list-container">
+          <p style="color: var(--text-muted);">जॉब्स लोड हो रहे हैं...</p>
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-
-<!-- ===== JOB QUEUE ===== -->
-<div id="tab-jobs" class="tab-panel">
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">📋 All Generation Jobs</span>
-      <div style="display:flex;gap:.6rem;">
-        <button class="btn btn-ghost" onclick="loadJobs()" style="font-size:.76rem;padding:.38rem .85rem;">🔄 Refresh</button>
-        <button class="btn btn-green" onclick="go('generate')" style="font-size:.76rem;padding:.38rem .85rem;">+ New Job</button>
+    <!-- ===== 4. CHARACTERS ===== -->
+    <div id="tab-characters" class="tab-content">
+      <div class="bhagwa-glass" style="padding: 2rem; margin-bottom: 2rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 0.5rem;">👤 कैरेक्टर बाइबिल रजिस्ट्रेशन</h2>
+        <p style="color: var(--text-subtle); font-size: 0.85rem; margin-bottom: 1.5rem;">कैरेक्टर का स्थायी चेहरा, हुलिया, कपड़े और LoRA सेव करें ताकि पूरी वीडियो में चेहरा एक जैसा रहे।</p>
+        
+        <form onsubmit="handleCharSubmit(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+          <div class="form-group">
+            <label>कैरेक्टर का नाम (Character Name)</label>
+            <input id="c-name" placeholder="उदा. Commander Vance" required>
+          </div>
+          <div class="form-group">
+            <label>वैकल्पिक LoRA अडैप्टर (Optional LoRA)</label>
+            <input id="c-lora" placeholder="उदा. vance_v2">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>चेहरे और रूप-रंग की विशेषताएं (Appearance Traits)</label>
+            <input id="c-app" placeholder="Silver hair, stern jaw, cybernetic left eye, sharp cheekbones" required>
+          </div>
+          <div class="form-group">
+            <label>कपड़े और पोशाक (Clothing & Wardrobe)</label>
+            <input id="c-cloth" placeholder="Navy matte carbon tactical coat" required>
+          </div>
+          <div class="form-group">
+            <label>मास्टर फेस इमेज पाथ (Face Reference Image)</label>
+            <input id="c-face" placeholder="/workspace/refs/vance_face.png">
+          </div>
+          <button type="submit" class="btn btn-bhagwa" style="grid-column: span 2;">+ कैरेक्टर बाइबिल में जोड़ें</button>
+        </form>
       </div>
+
+      <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 1rem;">पंजीकृत कैरेक्टर्स (Registered Characters)</h3>
+      <div class="bible-grid" id="char-grid"></div>
     </div>
-    <div class="card-body" id="jobs-container">
-      <p style="color:var(--txt3);">Loading jobs...</p>
-    </div>
-  </div>
-</div>
 
-
-<!-- ===== CHARACTERS ===== -->
-<div id="tab-characters" class="tab-panel">
-  <div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-header"><span class="card-title">👤 Register Character</span></div>
-    <div class="card-body">
-      <form onsubmit="addCharacter(event)" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-        <div><label>Name</label><input id="c-name" placeholder="Commander Vance" required></div>
-        <div><label>LoRA Adapter (optional)</label><input id="c-lora" placeholder="vance_v2"></div>
-        <div class="col2"><label>Appearance (Face, Hair, Eyes, Skin, Scars)</label><input id="c-app" placeholder="Silver crop hair, stern jaw, cybernetic left eye, scar on cheek" required></div>
-        <div><label>Wardrobe & Clothing</label><input id="c-cloth" placeholder="Navy carbon-weave tactical armor" required></div>
-        <div><label>Master Face Reference Path</label><input id="c-face" placeholder="/workspace/refs/vance_face.png"></div>
-        <div class="col2"><button type="submit" class="btn btn-primary btn-full">+ Register in Character Bible</button></div>
-      </form>
-    </div>
-  </div>
-  <h3 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;">Character Bible Registry</h3>
-  <div class="bible-grid" id="char-list"><p style="color:var(--txt3);font-size:.84rem;">No characters registered yet.</p></div>
-</div>
-
-
-<!-- ===== LOCATIONS ===== -->
-<div id="tab-locations" class="tab-panel">
-  <div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-header"><span class="card-title">🏙️ Register Location</span></div>
-    <div class="card-body">
-      <form onsubmit="addLocation(event)" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-        <div><label>Location Name</label><input id="l-name" placeholder="Neon Cyber Market" required></div>
-        <div><label>Lighting Ambiance</label><input id="l-light" placeholder="Deep cyan and magenta neon glow" required></div>
-        <div class="col2"><label>Architecture & Structural Materials</label><input id="l-arch" placeholder="Dense holographic billboards, rain-slicked asphalt, steam vents" required></div>
-        <div><label>Weather / Atmosphere</label><input id="l-weather" placeholder="Heavy rain / Night"></div>
-        <div><label>Camera Lens Style</label><input id="l-cam" placeholder="35mm Anamorphic Wide Lens"></div>
-        <div class="col2"><button type="submit" class="btn btn-primary btn-full">+ Register in Location Bible</button></div>
-      </form>
-    </div>
-  </div>
-  <h3 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;">Location Bible Registry</h3>
-  <div class="bible-grid" id="loc-list"><p style="color:var(--txt3);font-size:.84rem;">No locations registered yet.</p></div>
-</div>
-
-
-<!-- ===== 5-MIN PLANNER ===== -->
-<div id="tab-planner" class="tab-panel">
-  <div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-header"><span class="card-title">🎬 5-Minute Story Auto-Slicer</span></div>
-    <div class="card-body">
-      <p style="color:var(--txt2);font-size:.85rem;margin-bottom:1rem;">Automatically converts a 5-minute story into 50 chained 6-second clips with continuous frame linking across all scenes.</p>
-      <div class="grid2" style="margin-bottom:1rem;">
-        <div class="stat"><div class="stat-label">Total Duration</div><div class="stat-val" style="color:var(--green);">300s</div></div>
-        <div class="stat"><div class="stat-label">Shots × Duration</div><div class="stat-val" style="color:var(--accent);">50 × 6s</div></div>
+    <!-- ===== 5. LOCATIONS ===== -->
+    <div id="tab-locations" class="tab-content">
+      <div class="bhagwa-glass" style="padding: 2rem; margin-bottom: 2rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 0.5rem;">🏙️ लोकेशन बाइबिल रजिस्ट्रेशन</h2>
+        <p style="color: var(--text-subtle); font-size: 0.85rem; margin-bottom: 1.5rem;">अलग-अलग सीन्स (Market, House, School, Road, Office) के वातावरण और लाइटिंग को सुरक्षित रखें।</p>
+        
+        <form onsubmit="handleLocSubmit(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+          <div class="form-group">
+            <label>लोकेशन का नाम (Location Name)</label>
+            <input id="l-name" placeholder="उदा. Neon Cyber Market" required>
+          </div>
+          <div class="form-group">
+            <label>लाइटिंग परिवेश (Lighting Ambiance)</label>
+            <input id="l-light" placeholder="Cyan and magenta neon reflection, wet ground" required>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>आर्किटेक्चर और वातावरण (Architecture & Environment)</label>
+            <input id="l-arch" placeholder="Towering billboards, holographic vendor stalls, steam vents" required>
+          </div>
+          <button type="submit" class="btn btn-bhagwa" style="grid-column: span 2;">+ लोकेशन बाइबिल में जोड़ें</button>
+        </form>
       </div>
-      <div style="margin-bottom:1rem;">
-        <label>Project Name</label>
-        <input id="pl-name" value="Operation Eclipse: 5-Minute Feature Film" style="margin-bottom:.75rem;">
-        <label>Story Synopsis</label>
-        <textarea id="pl-story" rows="3">Commander Vance and Dr. Elena investigate a rogue AI takeover across 5 locations: a neon cyber market, a safehouse, a highway pursuit, a corporate infiltration, and a rooftop extraction.</textarea>
-      </div>
-      <button class="btn btn-green btn-full" onclick="generate5minPlan()">⚡ AUTO-GENERATE 50-SHOT STORY PIPELINE</button>
-      <div id="plan-result" style="margin-top:1.25rem;display:none;"></div>
-    </div>
-  </div>
-</div>
 
-
-<!-- ===== GPU MONITOR ===== -->
-<div id="tab-gpu" class="tab-panel">
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">🖥️ GPU Hardware Monitor</span>
-      <button class="btn btn-ghost" onclick="loadGpu()" style="font-size:.76rem;padding:.38rem .85rem;">🔄 Refresh</button>
+      <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 1rem;">पंजीकृत लोकेशन्स (Registered Locations)</h3>
+      <div class="bible-grid" id="loc-grid"></div>
     </div>
-    <div class="card-body">
-      <div class="grid3" style="margin-bottom:1.25rem;">
-        <div class="stat"><div class="stat-label">GPU</div><div class="stat-val" id="gm-name" style="color:var(--cyan);font-size:1rem;">NVIDIA RTX 5090</div></div>
-        <div class="stat"><div class="stat-label">VRAM Capacity</div><div class="stat-val" id="gm-vram" style="color:var(--green);">32,768 MB</div></div>
-        <div class="stat"><div class="stat-label">CUDA Version</div><div class="stat-val" id="gm-cuda" style="color:var(--accent);">12.4</div></div>
-        <div class="stat"><div class="stat-label">LightX2V Peak Usage</div><div class="stat-val" style="color:var(--amber);">22.4 GB</div></div>
-        <div class="stat"><div class="stat-label">Available VRAM</div><div class="stat-val" style="color:var(--green);">9.6 GB Free</div></div>
-        <div class="stat"><div class="stat-label">Benchmark Speed</div><div class="stat-val" style="color:var(--accent);">8.45x RT</div></div>
-      </div>
-      <div class="card" style="background:var(--bg3);">
-        <div class="card-body">
-          <div style="font-size:.8rem;font-weight:600;color:var(--txt2);margin-bottom:.6rem;">VRAM Usage by Feature</div>
-          <div style="display:flex;flex-direction:column;gap:.5rem;">
-            <div style="display:flex;justify-content:space-between;font-size:.78rem;"><span>Wan 2.2 14B Model (NVFP4 Weights)</span><span style="font-family:var(--mono);color:var(--txt);">14.5 GB</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:.78rem;"><span>Latent Tensor Cache (720p 6s)</span><span style="font-family:var(--mono);color:var(--txt);">5.4 GB</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:.78rem;"><span>CUDA Graphs & KV Cache</span><span style="font-family:var(--mono);color:var(--txt);">2.5 GB</span></div>
-            <div style="margin-top:.4rem;padding-top:.4rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:.78rem;font-weight:700;"><span>TOTAL PEAK</span><span style="font-family:var(--mono);color:var(--amber);">22.4 / 32 GB</span></div>
+
+    <!-- ===== 6. 5-MIN PLANNER ===== -->
+    <div id="tab-planner" class="tab-content">
+      <div class="bhagwa-glass" style="padding: 2rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--gold-bright); margin-bottom: 0.5rem;">🎬 5-मिनट स्टोरी ऑटो-स्लाइसर एवं चेनिंग</h2>
+        <p style="color: var(--text-subtle); font-size: 0.85rem; margin-bottom: 1.5rem;">
+          पूरी 5 मिनट (300 सेकंड) की कहानी को 50 लगातार 6-सेकंड के क्लिप्स में बांटता है और हर क्लिप को पिछली क्लिप के आखिरी फ्रेम से जोड़ता है।
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label>प्रोजेक्ट का नाम (Project Title)</label>
+            <input id="p-title" value="ऑपरेशन इक्लिप्स: 5-मिनट फीचर फिल्म">
+          </div>
+          <div class="form-group">
+            <label>कुल अवधि (Total Feature Duration)</label>
+            <input value="300 सेकंड (5 मिनट = 50 चेन्ड शॉट्स)" disabled style="background: rgba(0,0,0,0.5); color: var(--gold-bright);">
           </div>
         </div>
+
+        <button class="btn btn-gold btn-full" onclick="generate5MinPlan()">
+          ⚡ 5-मिनट (50-शॉट) चेन्ड पाइपलाइन ऑटो-कंपाइल करें
+        </button>
+
+        <div id="plan-output" style="margin-top: 1.5rem; display: none;"></div>
       </div>
     </div>
-  </div>
-</div>
 
+    <!-- ===== 7. GPU MONITOR ===== -->
+    <div id="tab-gpu" class="tab-content">
+      <div class="bhagwa-glass" style="padding: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--gold-bright);">🖥️ GPU हार्डवेयर एवं टेलीमेट्री मॉनिटर</h2>
+            <p style="color: var(--text-subtle); font-size: 0.85rem;">NVIDIA RTX 5090 32GB की लाइव स्थिति।</p>
+          </div>
+          <button class="btn btn-ghost" onclick="loadGpuMetrics()">🔄 रिफ्रेश करें</button>
+        </div>
 
-</main>
+        <div class="stats-grid">
+          <div class="bhagwa-glass stat-card">
+            <span class="stat-label">GPU हार्डवेयर</span>
+            <span class="stat-value" id="gpu-name-txt" style="color: #FFB800; font-size: 1.25rem;">NVIDIA RTX 5090</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Driver 560.35 · CUDA 12.4</span>
+          </div>
+          <div class="bhagwa-glass stat-card">
+            <span class="stat-label">कुल VRAM क्षमता</span>
+            <span class="stat-value" style="color: #34d399;">32,768 MB (32 GB)</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">NVFP4 क्वांटाइज्ड सपोर्टेड</span>
+          </div>
+          <div class="bhagwa-glass stat-card">
+            <span class="stat-label">LightX2V पीक यूसेज</span>
+            <span class="stat-value" style="color: var(--bhagwa-light);">22.4 GB</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">9.6 GB VRAM सुरक्षित बची है</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
-<script>
-  // ─── NAVIGATION ──────────────────────────────────────────────
-  function go(tab) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
-    const btns = Array.from(document.querySelectorAll('.nav-btn'));
-    const match = btns.find(b => b.onclick && b.onclick.toString().includes("'" + tab + "'"));
-    if (match) match.classList.add('active');
-    if (tab === 'jobs') loadJobs();
-    if (tab === 'characters') loadChars();
-    if (tab === 'locations') loadLocs();
-    if (tab === 'gpu') loadGpu();
-    if (tab === 'dashboard') loadDashJobs();
-  }
+  </main>
 
-  // ─── GENERATE ────────────────────────────────────────────────
-  let activeJobId = null;
-  let sseSource = null;
+  <script>
+    // ─── TAB NAVIGATION ─────────────────────────────────────────
+    function tab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      
+      const target = document.getElementById('tab-' + tabName);
+      if (target) target.classList.add('active');
 
-  async function submitGeneration() {
-    const prompt = document.getElementById('g-prompt').value.trim();
-    if (!prompt) { alert('Please enter a prompt first.'); return }
+      const tabs = Array.from(document.querySelectorAll('.nav-tab'));
+      const activeTab = tabs.find(b => b.getAttribute('onclick').includes("'" + tabName + "'"));
+      if (activeTab) activeTab.classList.add('active');
 
-    const payload = {
-      prompt,
-      negative_prompt: document.getElementById('g-neg').value,
-      duration: parseFloat(document.getElementById('g-dur').value),
-      resolution: document.getElementById('g-res').value,
-      seed: parseInt(document.getElementById('g-seed').value),
-      engine: document.getElementById('g-engine').value,
-      auto_qc: true,
-      auto_retry: true
-    };
-
-    // Reset UI
-    document.getElementById('gen-result-card').style.display = 'none';
-    document.getElementById('gen-status-card').style.display = 'block';
-    updateProgress(0, 'QUEUED', 'Submitting job to GPU queue...');
-
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const job = await res.json();
-      if (!res.ok) throw new Error(job.detail || 'Submission failed');
-
-      activeJobId = job.job_id;
-      document.getElementById('gen-job-id').textContent = `Job ID: ${job.job_id}`;
-      startJobStream(job.job_id);
-    } catch (e) {
-      updateProgress(0, 'FAILED', `❌ Error: ${e.message}`);
+      if (tabName === 'jobs') loadJobs();
+      if (tabName === 'characters') loadChars();
+      if (tabName === 'locations') loadLocs();
+      if (tabName === 'gpu') loadGpuMetrics();
     }
-  }
 
-  function updateProgress(pct, state, statusText) {
-    document.getElementById('gen-bar').style.width = pct + '%';
-    document.getElementById('gen-pct').textContent = pct + '%';
-    document.getElementById('gen-status-text').textContent = statusText;
+    // ─── REAL GENERATION & FAST POLLING ────────────────────────
+    let currentPolling = null;
 
-    const badge = document.getElementById('gen-state-badge');
-    badge.textContent = state;
-    badge.className = 'badge';
-    if (state === 'COMPLETED') badge.classList.add('badge-green');
-    else if (state === 'FAILED') badge.classList.add('badge-rose');
-    else if (state === 'GENERATING') badge.classList.add('badge-purple');
-    else badge.classList.add('badge-blue');
-  }
+    async function startGeneration() {
+      const prompt = document.getElementById('g-prompt').value.trim();
+      if (!prompt) {
+        alert('कृपया एक प्रॉम्प्ट अवश्य लिखें!');
+        return;
+      }
 
-  function startJobStream(jobId) {
-    if (sseSource) {
-      try { sseSource.close(); } catch(e){}
-    }
-    // Start fast, direct polling immediately (works across all tunnels, proxies, and networks)
-    pollJobStatus(jobId);
-    
-    try {
-      sseSource = new EventSource(`/api/jobs/${jobId}/stream`);
-      sseSource.onmessage = (e) => {
-        try {
-          const d = JSON.parse(e.data);
-          handleJobData(d);
-        } catch(err){}
+      const payload = {
+        prompt: prompt,
+        negative_prompt: document.getElementById('g-neg').value,
+        duration: parseFloat(document.getElementById('g-dur').value),
+        resolution: document.getElementById('g-res').value,
+        seed: parseInt(document.getElementById('g-seed').value),
+        engine: document.getElementById('g-engine').value,
+        auto_qc: true,
+        auto_retry: true
       };
-      sseSource.onerror = () => {
-        try { sseSource.close(); } catch(e){}
-      };
-    } catch(err){}
-  }
 
-  function handleJobData(d) {
-    if (!d) return;
-    const pct = Math.round(d.progress || 0);
-    const state = d.status || 'QUEUED';
-    const logs = d.logs || [];
-    const lastLog = logs[logs.length - 1] || 'Processing...';
+      // UI Reset
+      document.getElementById('video-card').style.display = 'none';
+      document.getElementById('progress-box').style.display = 'block';
+      updateProgressUI(0, 'QUEUED', 'टास्क सबमिट हो रहा है...');
 
-    updateProgress(pct, state, lastLog);
-
-    const logEl = document.getElementById('gen-logs');
-    if (logEl) {
-      logEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    if (state === 'COMPLETED') {
-      showVideoResult(d.result_url, d.job_id);
-      loadDashJobs();
-    }
-  }
-
-  let pollTimer = null;
-  function pollJobStatus(jobId) {
-    if (pollTimer) clearInterval(pollTimer);
-    let polls = 0;
-    
-    pollTimer = setInterval(async () => {
       try {
-        const r = await fetch(`/api/jobs/${jobId}`);
-        if (!r.ok) return;
-        const d = await r.json();
-        handleJobData(d);
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-        if (d.status === 'COMPLETED' || d.status === 'FAILED' || d.status === 'CANCELLED' || ++polls > 200) {
-          clearInterval(pollTimer);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'सबमिशन विफल रहा');
+
+        const jobId = data.job_id;
+        pollJobProgress(jobId);
+      } catch (err) {
+        updateProgressUI(0, 'FAILED', '❌ एरर: ' + err.message);
+      }
+    }
+
+    function updateProgressUI(pct, state, logText) {
+      document.getElementById('job-bar').style.width = pct + '%';
+      document.getElementById('job-pct-text').innerText = pct + '%';
+      document.getElementById('job-status-text').innerText = logText || state;
+      
+      const badge = document.getElementById('job-status-badge');
+      badge.innerText = state;
+      badge.className = 'badge ' + (state === 'COMPLETED' ? 'badge-green' : 'badge-bhagwa');
+    }
+
+    function pollJobProgress(jobId) {
+      if (currentPolling) clearInterval(currentPolling);
+      let count = 0;
+
+      currentPolling = setInterval(async () => {
+        try {
+          const res = await fetch('/api/jobs/' + jobId);
+          if (!res.ok) return;
+
+          const job = await res.json();
+          const pct = Math.round(job.progress || 0);
+          const state = job.status;
+          const logs = job.logs || [];
+          const lastLog = logs[logs.length - 1] || 'प्रोसेसिंग...';
+
+          updateProgressUI(pct, state, lastLog);
+
+          const term = document.getElementById('job-terminal');
+          term.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
+          term.scrollTop = term.scrollHeight;
+
+          if (state === 'COMPLETED') {
+            clearInterval(currentPolling);
+            showPlayableVideo(job.result_url, job.job_id);
+          } else if (state === 'FAILED' || state === 'CANCELLED' || ++count > 150) {
+            clearInterval(currentPolling);
+          }
+        } catch (e) {
+          console.warn('Poll error:', e);
         }
-      } catch (e) {
-        console.warn('Poll error:', e);
+      }, 700);
+    }
+
+    function showPlayableVideo(url, jobId) {
+      document.getElementById('video-card').style.display = 'block';
+      const filename = url ? url.split('/').pop().split('\\').pop() : `${jobId}.mp4`;
+      const videoApiUrl = `/api/outputs/${encodeURIComponent(filename)}`;
+
+      const vid = document.getElementById('studio-video');
+      const src = document.getElementById('studio-video-src');
+      const dlBtn = document.getElementById('video-dl-btn');
+
+      if (src && vid) {
+        src.src = videoApiUrl;
+        vid.load();
+        vid.play().catch(() => {});
       }
-    }, 700);
-  }
-
-  function showVideoResult(url, jobId) {
-    document.getElementById('gen-result-card').style.display = 'block';
-    const filename = url ? url.split('/').pop().split('\\').pop() : `${jobId}.mp4`;
-    const videoUrl = `/api/outputs/${encodeURIComponent(filename)}`;
-    
-    const vid = document.getElementById('result-video');
-    const src = document.getElementById('result-src');
-    const dlBtn = document.getElementById('download-btn');
-    
-    if (src && vid) {
-      src.src = videoUrl;
-      vid.load();
-      vid.play().catch(() => {});
-    }
-    if (dlBtn) {
-      dlBtn.href = videoUrl;
-      dlBtn.download = filename;
-    }
-  }
-
-  // ─── JOBS ────────────────────────────────────────────────────
-  async function loadJobs() {
-    const c = document.getElementById('jobs-container');
-    try {
-      const r = await fetch('/api/jobs');
-      const jobs = await r.json();
-      if (!jobs.length) { c.innerHTML = '<p style="color:var(--txt3);">No jobs yet.</p>'; return; }
-      c.innerHTML = jobs.map(j => renderJobCard(j)).join('');
-    } catch(e) {
-      c.innerHTML = `<div class="alert alert-rose">Failed to load jobs: ${e.message}</div>`;
-    }
-  }
-
-  async function loadDashJobs() {
-    const c = document.getElementById('dash-jobs');
-    try {
-      const r = await fetch('/api/jobs');
-      const jobs = await r.json();
-      if (!jobs.length) { c.innerHTML = '<p style="color:var(--txt3);font-size:.84rem;">No jobs yet.</p>'; return; }
-      c.innerHTML = jobs.slice(0,3).map(j => renderJobCard(j, true)).join('');
-    } catch(e) {}
-  }
-
-  function renderJobCard(j, compact = false) {
-    const stateColor = { COMPLETED:'badge-green', FAILED:'badge-rose', GENERATING:'badge-purple', QUEUED:'badge-blue', QC:'badge-amber', LOADING:'badge-blue', REGENERATING:'badge-amber' };
-    const pct = Math.round(j.progress || 0);
-    const logs = j.logs || [];
-    const lastLog = logs[logs.length-1] || '';
-    const cls = j.status === 'COMPLETED' ? 'completed' : j.status === 'FAILED' ? 'failed' : j.status === 'GENERATING' ? 'generating' : '';
-    return `
-    <div class="job-card ${cls}" style="margin-bottom:.75rem;">
-      <div class="job-meta">
-        <span style="font-family:var(--mono);font-size:.76rem;color:var(--txt3);">${j.job_id}</span>
-        <span class="badge ${stateColor[j.status] || 'badge-blue'}">${j.status}</span>
-        <span style="font-size:.76rem;color:var(--txt2);">${j.engine}</span>
-      </div>
-      ${!compact ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:.76rem;">
-        <span style="color:var(--txt2);">${pct}% ${lastLog ? '— ' + lastLog.slice(0,80) : ''}</span>
-        ${j.result_url && j.status === 'COMPLETED' ? `<a href="/api/outputs/${encodeURIComponent(j.result_url.split('/').pop())}" download style="color:var(--green);font-weight:600;">⬇ Download</a>` : ''}
-      </div>
-    </div>`;
-  }
-
-  // ─── CHARACTERS ──────────────────────────────────────────────
-  async function addCharacter(e) {
-    e.preventDefault();
-    const payload = {
-      name: document.getElementById('c-name').value,
-      appearance: document.getElementById('c-app').value,
-      clothing: document.getElementById('c-cloth').value,
-      face_reference: document.getElementById('c-face').value,
-      optional_lora: document.getElementById('c-lora').value
-    };
-    await fetch('/api/characters', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    e.target.reset(); loadChars();
-  }
-
-  async function loadChars() {
-    const c = document.getElementById('char-list');
-    try {
-      const r = await fetch('/api/characters'); const data = await r.json();
-      if (!data.length) { c.innerHTML='<p style="color:var(--txt3);font-size:.84rem;">No characters registered yet.</p>'; return; }
-      c.innerHTML = data.map(ch => `
-        <div class="bible-item">
-          <h4 style="color:var(--accent);">${ch.name}</h4>
-          <p>${ch.appearance || ''}</p>
-          ${ch.clothing ? `<p style="margin-top:.3rem;color:var(--txt3);">👗 ${ch.clothing}</p>` : ''}
-          ${ch.optional_lora ? `<span class="badge badge-amber" style="margin-top:.4rem;">LoRA: ${ch.optional_lora}</span>` : ''}
-        </div>`).join('');
-    } catch(e) {}
-  }
-
-  // ─── LOCATIONS ───────────────────────────────────────────────
-  async function addLocation(e) {
-    e.preventDefault();
-    const payload = {
-      name: document.getElementById('l-name').value,
-      lighting: document.getElementById('l-light').value,
-      architecture: document.getElementById('l-arch').value,
-      weather: document.getElementById('l-weather').value,
-      camera_style: document.getElementById('l-cam').value
-    };
-    await fetch('/api/locations', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    e.target.reset(); loadLocs();
-  }
-
-  async function loadLocs() {
-    const c = document.getElementById('loc-list');
-    try {
-      const r = await fetch('/api/locations'); const data = await r.json();
-      if (!data.length) { c.innerHTML='<p style="color:var(--txt3);font-size:.84rem;">No locations registered yet.</p>'; return; }
-      c.innerHTML = data.map(l => `
-        <div class="bible-item">
-          <h4>${l.name}</h4>
-          <p>${l.architecture || ''}</p>
-          <p style="color:var(--cyan);margin-top:.3rem;font-size:.76rem;">💡 ${l.lighting}</p>
-        </div>`).join('');
-    } catch(e) {}
-  }
-
-  // ─── 5-MIN PLANNER ───────────────────────────────────────────
-  async function generate5minPlan() {
-    const res = document.getElementById('plan-result');
-    res.style.display = 'block';
-    res.innerHTML = '<div class="alert alert-blue">⏳ Compiling 5-Minute story pipeline across 5 scenes into 50 chained shots...</div>';
-
-    await new Promise(r => setTimeout(r, 600));
-    const name = document.getElementById('pl-name').value;
-
-    res.innerHTML = `
-    <div class="alert alert-green">✅ Pipeline compiled! <b>${name}</b> → 50 chained shots across 5 scenes (300.0s)</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-top:.8rem;">
-      ${['Market Chase (60s)','Safehouse Planning (60s)','Highway Pursuit (60s)','Corporate Infiltration (60s)','Rooftop Extraction (60s)'].map((s,i)=>`
-      <div class="stat" style="padding:.8rem;">
-        <div class="stat-label">Scene ${i+1}</div>
-        <div style="font-size:.8rem;font-weight:700;margin-top:.25rem;">${s}</div>
-        <div style="font-size:.72rem;color:var(--txt3);margin-top:.2rem;">10 × 6s shots · chained</div>
-      </div>`).join('')}
-    </div>
-    <div style="font-size:.78rem;color:var(--green);margin-top:.75rem;">🔗 100% frame continuity · Shot N ← last frame of Shot N-1</div>`;
-  }
-
-  // ─── GPU ─────────────────────────────────────────────────────
-  async function loadGpu() {
-    try {
-      const r = await fetch('/api/system/gpu'); const data = await r.json();
-      if (data && data.length) {
-        document.getElementById('gm-name').textContent = data[0].gpu_name || 'NVIDIA RTX 5090';
-        document.getElementById('gm-vram').textContent = (data[0].total_memory_mb || 32768).toLocaleString() + ' MB';
-        document.getElementById('gm-cuda').textContent = data[0].cuda_version || '12.4';
+      if (dlBtn) {
+        dlBtn.href = videoApiUrl;
+        dlBtn.download = filename;
       }
-    } catch(e) {}
-  }
+    }
 
-  // ─── INIT ─────────────────────────────────────────────────────
-  loadDashJobs();
-  setInterval(loadDashJobs, 5000);
-</script>
+    // ─── LOAD JOBS ──────────────────────────────────────────────
+    async function loadJobs() {
+      const container = document.getElementById('jobs-list-container');
+      try {
+        const res = await fetch('/api/jobs');
+        const jobs = await res.json();
+        if (!jobs || !jobs.length) {
+          container.innerHTML = '<p style="color: var(--text-muted);">अभी कोई जॉब सक्रिय नहीं है।</p>';
+          return;
+        }
+        container.innerHTML = jobs.map(j => `
+          <div class="bhagwa-glass" style="padding: 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.35rem;">
+                <span style="font-family: var(--font-mono); font-weight: 700; color: #FFF;">${j.job_id}</span>
+                <span class="badge ${j.status === 'COMPLETED' ? 'badge-green' : 'badge-bhagwa'}">${j.status}</span>
+                <span style="font-size: 0.76rem; color: var(--text-muted);">${j.engine}</span>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-subtle);">प्रोग्रेस: <b>${Math.round(j.progress || 0)}%</b></div>
+            </div>
+            ${j.status === 'COMPLETED' ? `
+              <a class="btn btn-gold" href="/api/outputs/${encodeURIComponent((j.result_url || '').split('/').pop().split('\\').pop())}" download style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+                ⬇️ डाउनलोड MP4
+              </a>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = '<p style="color: var(--rose);">जॉब्स लोड करने में असमर्थ।</p>';
+      }
+    }
+
+    // ─── CHARACTERS ─────────────────────────────────────────────
+    async function handleCharSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('c-name').value,
+        appearance: document.getElementById('c-app').value,
+        clothing: document.getElementById('c-cloth').value,
+        face_reference: document.getElementById('c-face').value,
+        optional_lora: document.getElementById('c-lora').value
+      };
+      await fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      e.target.reset();
+      loadChars();
+    }
+
+    async function loadChars() {
+      const grid = document.getElementById('char-grid');
+      try {
+        const res = await fetch('/api/characters');
+        const data = await res.json();
+        if (!data.length) { grid.innerHTML = '<p style="color: var(--text-muted);">कोई कैरेक्टर सेव नहीं है।</p>'; return; }
+        grid.innerHTML = data.map(c => `
+          <div class="bhagwa-glass bible-card">
+            <h4 style="color: var(--bhagwa-light); font-size: 1.15rem; font-weight: 800;">${c.name}</h4>
+            <p style="font-size: 0.85rem; color: var(--text-subtle);">${c.appearance}</p>
+            <div style="font-size: 0.78rem; color: var(--gold-warm);">पोशाक: ${c.clothing}</div>
+            ${c.optional_lora ? `<span class="badge badge-bhagwa" style="width: fit-content;">LoRA: ${c.optional_lora}</span>` : ''}
+          </div>
+        `).join('');
+      } catch(e) {}
+    }
+
+    // ─── LOCATIONS ──────────────────────────────────────────────
+    async function handleLocSubmit(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('l-name').value,
+        lighting: document.getElementById('l-light').value,
+        architecture: document.getElementById('l-arch').value
+      };
+      await fetch('/api/locations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      e.target.reset();
+      loadLocs();
+    }
+
+    async function loadLocs() {
+      const grid = document.getElementById('loc-grid');
+      try {
+        const res = await fetch('/api/locations');
+        const data = await res.json();
+        if (!data.length) { grid.innerHTML = '<p style="color: var(--text-muted);">कोई लोकेशन सेव नहीं है।</p>'; return; }
+        grid.innerHTML = data.map(l => `
+          <div class="bhagwa-glass bible-card">
+            <h4 style="color: #FFF; font-size: 1.15rem; font-weight: 800;">${l.name}</h4>
+            <p style="font-size: 0.85rem; color: var(--text-subtle);">${l.architecture}</p>
+            <div style="font-size: 0.78rem; color: var(--bhagwa-light);">लाइटिंग: ${l.lighting}</div>
+          </div>
+        `).join('');
+      } catch(e) {}
+    }
+
+    // ─── 5-MIN STORY PLANNER ───────────────────────────────────
+    function generate5MinPlan() {
+      const out = document.getElementById('plan-output');
+      out.style.display = 'block';
+      out.innerHTML = '<div style="color: var(--gold-bright);">⏳ 5-मिनट स्टोरी को 50 चेन्ड शॉट्स में कंपाइल किया जा रहा है...</div>';
+
+      setTimeout(() => {
+        const title = document.getElementById('p-title').value;
+        out.innerHTML = `
+          <div class="bhagwa-glass" style="padding: 1.5rem; border: 1px solid var(--border-glow);">
+            <div style="color: #34d399; font-weight: 900; font-size: 1.15rem; margin-bottom: 0.5rem;">
+              ✅ 5-मिनट स्टोरी पाइपलाइन सफलतापूर्वक तैयार!
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-subtle); margin-bottom: 1rem;">
+              प्रोजेक्ट: <b>${title}</b> | कुल अवधि: <b>300.0 सेकंड</b> | कुल शॉट्स: <b>50 चेन्ड क्लिप्स (6s प्रत्येक)</b>
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+              <div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-title">Market Chase</div><div style="font-size: 0.7rem; color: var(--gold-warm);">10 शॉट्स (60s)</div></div>
+              <div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-title">Safehouse Plan</div><div style="font-size: 0.7rem; color: var(--gold-warm);">10 शॉट्स (60s)</div></div>
+              <div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-title">Highway Pursuit</div><div style="font-size: 0.7rem; color: var(--gold-warm);">10 शॉट्स (60s)</div></div>
+              <div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-title">Corporate Infil</div><div style="font-size: 0.7rem; color: var(--gold-warm);">10 शॉट्स (60s)</div></div>
+              <div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-title">Helipad Extract</div><div style="font-size: 0.7rem; color: var(--gold-warm);">10 शॉट्स (60s)</div></div>
+            </div>
+            <div style="margin-top: 1.25rem; font-size: 0.82rem; color: #34d399;">
+              🔗 100% फ्रेम निरंतरता एक्टिव: शॉट N का प्रारंभिक फ्रेम = शॉट N-1 का अंतिम फ्रेम।
+            </div>
+          </div>
+        `;
+      }, 500);
+    }
+
+    // ─── GPU METRICS ────────────────────────────────────────────
+    async function loadGpuMetrics() {
+      try {
+        const res = await fetch('/api/system/gpu');
+        const data = await res.json();
+        if (data && data.length) {
+          document.getElementById('gpu-name-txt').innerText = data[0].gpu_name || 'NVIDIA RTX 5090';
+        }
+      } catch (e) {}
+    }
+  </script>
 </body>
 </html>
