@@ -207,9 +207,10 @@ class AudioService:
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
         is_no_music = "no background music" in p_lower or "no bgm" in p_lower or "no music" in p_lower
+        is_inspirational = any(k in p_lower for k in ["inspirational", "orchestral", "promotional", "campaign", "development", "yogi", "government", "uplifting", "patriotic", "energetic", "vikas"])
         is_mythological = any(k in p_lower for k in ["ancient", "india", "dwapar", "aryavarta", "war", "epic", "mytholog", "sunset", "sunrise"])
-        is_children = any(k in p_lower for k in ["child", "children", "boy", "boys", "girl", "girls", "kid", "kids", "courtyard", "play"])
-        is_vehicle = any(k in p_lower for k in ["car", "racing", "speed", "road", "vehicle"])
+        is_children = any(k in p_lower for k in ["child", "children", "boy", "boys", "girl", "girls", "kid", "kids", "courtyard", "play", "kittu", "raghavendra"])
+        is_vehicle = any(k in p_lower for k in ["car", "racing", "speed", "road", "vehicle", "expressway"])
         is_rain = any(k in p_lower for k in ["rain", "storm", "thunder"])
         is_nature = any(k in p_lower for k in ["forest", "river", "mountain", "village", "garden", "tree", "field"])
 
@@ -220,6 +221,19 @@ class AudioService:
                 f"lowpass=f=600,highpass=f=60,"
                 f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
                 f"volume=0.08"
+            )
+        elif is_inspirational:
+            # Grand inspirational orchestral pad with uplifting chord progression & subtle whoosh rise
+            audio_filter = (
+                f"aevalsrc='sin(2*PI*174.61*t)*0.10*sin(PI*t/{dur})"
+                f"+sin(2*PI*220.0*t)*0.08*sin(PI*t/{dur})"
+                f"+sin(2*PI*261.63*t)*0.09*sin(PI*t/{dur})"
+                f"+sin(2*PI*349.23*t)*0.07*sin(PI*t/{dur})"
+                f"+sin(2*PI*523.25*t)*0.05*sin(PI*t/{dur})'"
+                f":d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=3500,highpass=f=50,"
+                f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.2}:d=1.2,"
+                f"volume=0.28"
             )
         elif is_children:
             # Warm gentle melodic atmosphere for child scenes — soft tanpura + birds

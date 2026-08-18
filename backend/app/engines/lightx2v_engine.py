@@ -237,8 +237,16 @@ class LightX2VEngine(BaseVideoEngine):
         # ── 2. SYNTHESIZE NEURAL HINDI VOICEOVER & AMBIENT MUSIC ──
         has_voiceover = False
         if voiceover_dialogue:
-            is_child_or_female = any(w in str(visual_raw).lower() for w in ["बच्चे", "बच्चा", "बच्ची", "लड़की", "बालक", "माता", "child", "kittu", "raghavendra"])
-            chosen_voice = "hi-IN-SwaraNeural" if is_child_or_female else "hi-IN-MadhurNeural"
+            chosen_voice = "hi-IN-MadhurNeural"
+            if isinstance(voiceover_dialogue, list) and len(voiceover_dialogue) > 0:
+                first_d = voiceover_dialogue[0]
+                if first_d.get("speaker") == "Female Voice" or (first_d.get("is_child") and "swara" in str(first_d.get("speaker", "")).lower()):
+                    chosen_voice = "hi-IN-SwaraNeural"
+                elif first_d.get("speaker") == "Male Voice" or first_d.get("speaker") == "Male Narrator":
+                    chosen_voice = "hi-IN-MadhurNeural"
+            elif any(w in str(visual_raw).lower() for w in ["बच्ची", "लड़की", "माता", "woman", "female"]):
+                chosen_voice = "hi-IN-SwaraNeural"
+
             has_voiceover = await audio_service.generate_hindi_voiceover_speech(
                 dialogue_input=voiceover_dialogue,
                 output_speech_path=voice_speech_file,

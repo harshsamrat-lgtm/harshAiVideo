@@ -1,9 +1,11 @@
 """
-Prompt Synthesizer & Dual-Track Visual/Voice-over Parser for Harsh AI Video Studio.
-Optimized for CogVideoX-5B and SANA-Video 2B text-to-video diffusion models.
-Separates compound prompts and multi-character dialogue scripts into:
-  1. Clean visual scene directions with rock-solid facial and 5-finger hand anatomy.
-  2. Multi-turn Neural Voice-over dialogue tracks with authentic Child and Adult vocal modulation.
+Prompt Synthesizer & Section-Aware Dual-Track Visual/Voice-over Parser for Harsh AI Video Studio.
+Optimized for CogVideoX-5B, SANA-Video 2B, and high-end video diffusion models.
+Handles:
+  1. Multi-section Campaign Scripts (Master Prompt, Visual Breakdown, Voiceover, Music, Typography)
+  2. Multi-turn Character Scripts (e.g. Kittu & Raghavendra child exchanges)
+  3. Single-turn Narrations & Dialogue Prompts
+  4. Hindi-to-English Cinematic Translation & Anatomical Quality Boosters
 """
 import re
 from typing import List, Optional, Dict, Any, Tuple
@@ -12,6 +14,22 @@ from app.models.schemas import CharacterResponse, LocationResponse
 
 # Comprehensive Hindi to English visual descriptor lexicon
 HINDI_DICTIONARY = {
+    # Modern Infrastructure, Development & State Campaigns
+    "उत्तर प्रदेश": "the progressive state of Uttar Pradesh India with world-class modern expressways, clean infrastructure, and lush green fields",
+    "योगी": "progressive leadership, state development, and modern infrastructure governance in India",
+    "सरकार": "modern Indian governance, welfare development, and public infrastructure",
+    "योजनाएं": "progressive public welfare schemes, social prosperity, and modern development",
+    "विकास": "futuristic modern infrastructure, wide clean expressways, state-of-the-art buildings, and progressive development",
+    "एक्सप्रेसवे": "a magnificent multi-lane modern expressway with smooth traffic and sleek vehicles driving under golden morning sunlight",
+    "गाड़ियाँ": "sleek modern cars and vehicles driving smoothly along the paved highway",
+    "सड़कें": "wide clean modern paved roads with smart streetlights and green medians",
+    "स्वच्छ शहर": "a clean modern Indian city with pristine streets, solar lights, and orderly architecture",
+    "स्वच्छ": "clean pristine surroundings with orderly architecture and bright natural daylight",
+    "अस्पताल": "a state-of-the-art clean modern hospital medical center with caring doctors",
+    "रोजगार": "young Indian professionals working enthusiastically in modern clean skill training centers",
+    "किसान": "a proud smiling Indian farmer standing in a flourishing green agricultural field under warm golden sunlight",
+    "खेत": "lush flourishing green agricultural farmland and golden crops swaying under the blue sky",
+
     # People, Children, Family & Characters
     "बच्चे": "two cheerful cute Indian children with perfectly proportioned friendly faces, bright clear eyes, and anatomically perfect hands",
     "बच्चा": "a cute cheerful Indian child with a clear detailed expressive face and bright eyes",
@@ -21,6 +39,8 @@ HINDI_DICTIONARY = {
     "लड़के": "cheerful young Indian boys with sharp detailed facial features and friendly smiles",
     "लड़की": "a beautiful young Indian girl with detailed facial features and graceful expression",
     "लड़कियां": "cheerful young Indian girls with detailed facial features and friendly expressions",
+    "महिलाएं": "confident smiling Indian women in elegant traditional attire participating in community work",
+    "महिला": "a graceful smiling Indian woman with warm confident expression",
     "दोस्त": "close friends standing together with happy natural facial expressions",
     "मित्र": "dear friends with warm smiling expressions",
     "परिवार": "a loving Indian family together with detailed warm facial expressions",
@@ -80,6 +100,7 @@ HINDI_DICTIONARY = {
     "घर": "a cozy traditional home with warm inviting atmosphere",
 
     # Nature & Sky
+    "सुबह": "a glorious golden morning sunrise casting warm rays and pristine daylight",
     "सूर्य": "the radiant golden sun casting warm cinematic light",
     "सूर्यास्त": "a breathtaking golden hour sunset with rich amber, crimson, and purple skies",
     "सूर्योदय": "a glorious golden dawn sunrise spreading warm morning light",
@@ -96,108 +117,125 @@ HINDI_DICTIONARY = {
 
 def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Any]:
     """
-    Separates user input into Visual Scene Prompt and Multi-character Voice-over Dialogues.
-    Returns: (clean_visual_prompt, dialogue_data)
-      dialogue_data can be:
-        - List of dicts: [{'speaker': 'Kittu', 'text': '...', 'is_child': True, 'start': 0.0}, ...]
-        - String: single dialogue / narration
-        - None: no dialogue
+    Separates user input into Visual Scene Prompt and Voice-over Dialogues.
+    Understands:
+      - Explicit `### Voiceover` sections in multi-section campaign scripts
+      - Multi-character turn dialogues (Kittu & Raghavendra)
+      - Master visual prompts & single scene directions
     """
     if not raw_input:
         return ("a cinematic landscape at golden hour, photorealistic, 4K", None)
 
-    # 1. Extract Hindi quotes from script / prompt
-    # Matches “...”, "...", ‘...’, '...' containing Devanagari Hindi characters
-    quote_matches = re.findall(r'[\"“\'‘]([\u0900-\u097F\s\.\,…!?\-।]+)[\"”\'’]', raw_input)
-
-    is_child_scene = any(w in raw_input.lower() for w in ["बच्चे", "बच्चा", "बच्ची", "child", "children", "boy", "boys", "girl", "girls", "5-year-old", "kid", "kids", "किट्टू", "राघवेंद्र"])
-
     dialogues: List[Dict[str, Any]] = []
 
-    if len(quote_matches) >= 2:
-        # Multiple character dialogue exchange
-        for i, q in enumerate(quote_matches[:2]):
-            speaker_name = "Character 1" if i == 0 else "Character 2"
-            if i == 0 and ("किट्टू" in raw_input or "kittu" in raw_input.lower()):
-                speaker_name = "Kittu"
-            elif i == 1 and ("राघवेंद्र" in raw_input or "raghavendra" in raw_input.lower()):
-                speaker_name = "Raghavendra"
+    # ── 1. CHECK FOR EXPLICIT VOICEOVER / DIALOGUE SECTION ──
+    # Regex looks for `### Voiceover` or `Voice-over:` or `वॉइस ओवर:` block
+    vo_section_match = re.search(
+        r'(?:###?\s*(?:Voiceover|Voice-over|Voice over|वॉइस ओवर|डायलॉग|Dialogue|संवाद)|(?:\*\*|\b)(?:Voiceover|Voice-over|वॉइस ओवर)(?:\*\*|:))\s*([\s\S]*?)(?:###|\n\n\*\*Visual|\n\n\*\*Important|\Z)',
+        raw_input,
+        re.IGNORECASE
+    )
 
-            dialogues.append({
-                "speaker": speaker_name,
-                "text": q.strip(),
-                "is_child": is_child_scene,
-                "turn": i
-            })
-    elif len(quote_matches) == 1:
-        dialogues.append({
-            "speaker": "Speaker",
-            "text": quote_matches[0].strip(),
-            "is_child": is_child_scene,
-            "turn": 0
-        })
-
-    # If no quotes found, try explicit dialogue patterns
-    if not dialogues:
-        vo_patterns = [
-            r'(?:Voice-over|Voiceover|Voice over|वॉइस ओवर|डायलॉग|Dialogue|संवाद)\s*:\s*[""\']?(.*?)(?:[""\']?\s*$)',
-        ]
-        for pat in vo_patterns:
-            m = re.search(pat, raw_input, re.IGNORECASE | re.DOTALL)
-            if m:
-                dialogues.append({
-                    "speaker": "Narrator",
-                    "text": m.group(1).strip().strip('""\'"'),
-                    "is_child": is_child_scene,
-                    "turn": 0
-                })
-                break
-
-    # If still no dialogue, and input is pure Hindi, extract only clean spoken content
-    if not dialogues and re.search(r'[\u0900-\u097F]', raw_input):
-        # Strip markdown, headers, script directions, timecodes — keep only natural speech
-        clean_hindi = raw_input
-        clean_hindi = re.sub(r'#.*?\n', ' ', clean_hindi)              # Remove markdown headers
-        clean_hindi = re.sub(r'\*\*.*?\*\*', ' ', clean_hindi)         # Remove bold text
-        clean_hindi = re.sub(r'\d+[–\-]\d+\s*सेकंड.*?:', ' ', clean_hindi)  # Remove timecodes
-        clean_hindi = re.sub(r'दृश्य\s*:.*?\n', ' ', clean_hindi)      # Remove scene directions
-        clean_hindi = re.sub(r'वीडियो\s*प्रॉम्प्ट\s*:.*', ' ', clean_hindi)  # Remove video prompt label
-        clean_hindi = re.sub(r'[A-Za-z]{5,}', ' ', clean_hindi)       # Remove long English words (not spoken)
-        clean_hindi = re.sub(r'[#\*\_\[\]\(\)]+', ' ', clean_hindi)    # Remove formatting chars
-        clean_hindi = re.sub(r'\s+', ' ', clean_hindi).strip()
+    if vo_section_match:
+        vo_block = vo_section_match.group(1).strip()
+        # Find quoted text inside voiceover block
+        vo_quotes = re.findall(r'[\"“\'‘]([\u0900-\u097F\s\.\,…!?\-।–]+)[\"”\'’]', vo_block)
         
-        # Only use as narration if there's meaningful Hindi content left
-        if len(clean_hindi) > 10 and re.search(r'[\u0900-\u097F]{3,}', clean_hindi):
+        is_male = any(w in vo_block.lower() for w in ["पुरुष", "male", "man", "deep", "energetic male"])
+        is_female = any(w in vo_block.lower() for w in ["महिला", "female", "woman"])
+        is_child = any(w in vo_block.lower() for w in ["बच्चे", "बच्चा", "child", "kid"])
+
+        if vo_quotes:
+            vo_text = " ".join(vo_quotes).strip()
+        else:
+            # Clean markdown formatting inside voiceover block
+            vo_text = re.sub(r'[\#\*\_\(\)]+', ' ', vo_block)
+            vo_text = re.sub(r'(?:एक\s+)?(?:प्रभावशाली|स्पष्ट|ऊर्जावान|पुरुष|महिला|हिंदी|आवाज).*?:?', ' ', vo_text)
+            vo_text = re.sub(r'[A-Za-z]+', ' ', vo_text)
+            vo_text = re.sub(r'\s+', ' ', vo_text).strip()
+
+        if vo_text and len(vo_text) > 3:
             dialogues.append({
-                "speaker": "Narrator",
-                "text": clean_hindi,
-                "is_child": is_child_scene,
+                "speaker": "Male Voice" if is_male else ("Female Voice" if is_female else "Narrator"),
+                "text": vo_text,
+                "is_child": is_child,
                 "turn": 0
             })
 
-    # 2. Clean visual prompt (remove script headers, timecodes, quotes)
-    clean_visual = raw_input
-    # Remove markdown headers like "# 8 सेकंड की वीडियो स्क्रिप्ट", "दृश्य:", "0-4 सेकंड"
-    clean_visual = re.sub(r'#.*?\n', ' ', clean_visual)
-    clean_visual = re.sub(r'\*\*.*?\*\*', ' ', clean_visual)
-    clean_visual = re.sub(r'\d+–\d+\s*सेकंड.*?:', ' ', clean_visual)
-    clean_visual = re.sub(r'दृश्य:.*?\n', ' ', clean_visual)
-    clean_visual = re.sub(r'वीडियो प्रॉम्प्ट:.*?', ' ', clean_visual)
+    # ── 2. IF NO EXPLICIT VOICEOVER SECTION, CHECK SCRIPT TURNS (E.G. KITTU & RAGHAVENDRA) ──
+    if not dialogues:
+        turn_matches = re.findall(r'(?:(\d+[–\-]\d+\s*सेकंड|किट्टू|राघवेंद्र|Speaker\s*\d+)[^\n\"]*?)[\"“\'‘]([\u0900-\u097F\s\.\,…!?\-।–]+)[\"”\'’]', raw_input)
+        if turn_matches:
+            for i, (spk, q) in enumerate(turn_matches[:2]):
+                is_child_speaker = any(w in spk.lower() or w in raw_input.lower() for w in ["किट्टू", "राघवेंद्र", "बच्चे", "बच्चा", "child", "kittu"])
+                dialogues.append({
+                    "speaker": spk.strip(),
+                    "text": q.strip(),
+                    "is_child": is_child_speaker,
+                    "turn": i
+                })
 
-    # Remove quotes from visual prompt so diffusion gets pure scene description
-    for q in quote_matches:
-        clean_visual = clean_visual.replace(q, ' ')
+    # ── 3. FALLBACK: GENERAL QUOTES IF MARKED AS DIALOGUE ──
+    if not dialogues:
+        all_quotes = re.findall(r'[\"“\'‘]([\u0900-\u097F\s\.\,…!?\-।–]+)[\"”\'’]', raw_input)
+        # Filter out short slogans like "विकास की नई पहचान" if they look like screen titles
+        meaningful_quotes = [q for q in all_quotes if len(q.strip()) > 10]
+        if meaningful_quotes:
+            is_child_scene = any(w in raw_input.lower() for w in ["बच्चे", "बच्चा", "child", "kid", "किट्टू", "राघवेंद्र"])
+            for i, q in enumerate(meaningful_quotes[:2]):
+                dialogues.append({
+                    "speaker": f"Character {i+1}",
+                    "text": q.strip(),
+                    "is_child": is_child_scene,
+                    "turn": i
+                })
 
-    # If prompt contains English visual text, extract English description
-    english_blocks = re.findall(r'([A-Za-z0-9\s,\.\-\'\"]{25,})', raw_input)
-    if english_blocks:
-        # Choose longest English visual description
-        longest_english = max(english_blocks, key=len).strip()
-        # Clean quotes inside English block
-        longest_english = re.sub(r'[\"“\'‘][\u0900-\u097F\s\.\,…!?\-।]+[\"”\'’]', '', longest_english)
-        clean_visual = longest_english
+    # ── 4. EXTRACT & DISTILL THE MASTER VISUAL PROMPT FOR DIFFUSION ──
+    # For complex multi-section prompts, extract the core visual scene
+    visual_text = ""
 
-    return (clean_visual.strip(), dialogues if dialogues else None)
+    # Check for `MASTER VIDEO PROMPT:` or `वीडियो प्रॉम्प्ट:`
+    master_prompt_match = re.search(
+        r'(?:MASTER VIDEO PROMPT:|वीडियो प्रॉम्प्ट:|Visual Prompt:|Scene Description:)\s*([\s\S]*?)(?:###|\n\n\*\*|\n\n###|\Z)',
+        raw_input,
+        re.IGNORECASE
+    )
+    if master_prompt_match:
+        visual_text = master_prompt_match.group(1).strip()
+
+    # Check for opening scene `0-2 second` breakdown if available
+    scene_match = re.search(
+        r'(?:0[–\-]\d+\s*सेकंड[\s\S]*?:\s*)([^\n\r]+(?:\r?\n[^\n\r#\*\#]+)?)',
+        raw_input
+    )
+    if scene_match:
+        scene_desc = scene_match.group(1).strip()
+        if visual_text:
+            visual_text = f"{visual_text}. {scene_desc}"
+        else:
+            visual_text = scene_desc
+
+    # If neither found, use raw input cleaned
+    if not visual_text:
+        visual_text = raw_input
+
+    # Clean meta instructions, typography, slogans, headers from visual text
+    visual_text = re.sub(r'#.*?\n', ' ', visual_text)
+    visual_text = re.sub(r'###.*?\n', ' ', visual_text)
+    visual_text = visual_text.replace('**', ' ').replace('*', ' ')
+    visual_text = re.sub(r'MASTER VIDEO PROMPT:\s*', ' ', visual_text, flags=re.IGNORECASE)
+    visual_text = re.sub(r'वीडियो प्रॉम्प्ट:\s*', ' ', visual_text)
+    visual_text = re.sub(r'\d+[–\-]\d+\s*सेकंड.*?:', ' ', visual_text)
+    visual_text = re.sub(r'दृश्य\s*:.*?\n', ' ', visual_text)
+    visual_text = re.sub(r'Voiceover[\s\S]*?(?:###|\Z)', ' ', visual_text, flags=re.IGNORECASE)
+    visual_text = re.sub(r'Background Music[\s\S]*?(?:###|\Z)', ' ', visual_text, flags=re.IGNORECASE)
+    visual_text = re.sub(r'Important:.*', ' ', visual_text, flags=re.IGNORECASE)
+    visual_text = re.sub(r'typography.*', ' ', visual_text, flags=re.IGNORECASE)
+    visual_text = re.sub(r'स्लोगन.*', ' ', visual_text)
+    visual_text = re.sub(r'[\"“\'‘][\u0900-\u097F\s\.\,…!?\-।–]+[\"”\'’]', ' ', visual_text)
+    visual_text = re.sub(r'\s+', ' ', visual_text).strip()
+
+    return (visual_text, dialogues if dialogues else None)
 
 
 def translate_and_enhance_hindi_prompt(text: str) -> str:
@@ -206,7 +244,7 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
     Enforces rock-solid facial proportions, 5-finger hands, and cinematic coherence.
     """
     if not text:
-        return "A cinematic medium shot of two joyful 5-year-old Indian boys conversing in a sunny courtyard, sharp facial features, anatomically correct hands, photorealistic 8K quality."
+        return "A cinematic sweeping aerial shot of a modern multi-lane expressway in Uttar Pradesh India during golden sunrise, sleek vehicles driving smoothly, photorealistic 8K quality."
 
     enhanced = text.strip()
 
@@ -225,11 +263,19 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
         else:
             enhanced = f"A beautiful cinematic scene of {enhanced}, photorealistic, sharp focus"
 
+    # Enforce professional camera styling
     p_lower = enhanced.lower()
-    has_people = any(c in p_lower for c in ["child", "children", "boy", "boys", "girl", "girls", "people", "person", "man", "woman", "warrior", "student", "friend", "kittu", "raghavendra"])
+    has_people = any(c in p_lower for c in ["child", "children", "boy", "boys", "girl", "girls", "people", "person", "man", "woman", "warrior", "student", "friend", "farmer", "kittu", "raghavendra"])
+    has_aerial = any(c in p_lower for c in ["aerial", "expressway", "highway", "city", "drone", "wide", "landscape", "infrastructure", "uttar pradesh"])
 
-    # Enforce anatomical stability for faces, eyes, lips, and hands
-    if has_people:
+    if has_aerial:
+        cinematic_style = (
+            "Sweeping cinematic aerial drone shot, wide-angle 24mm master lens, "
+            "radiant golden hour morning illumination, vivid vibrant natural color grading, "
+            "ultra-sharp 8K resolution, dynamic smooth motion, photorealistic national campaign standard"
+        )
+        enhanced = f"{enhanced}. {cinematic_style}"
+    elif has_people:
         anatomical_stabilizer = (
             "Cinematic medium portrait shot, perfectly proportioned symmetrical facial features, "
             "steady centered pupils with fixed eye gaze, natural well-defined lip contour with subtle natural mouth motion, "
@@ -244,6 +290,7 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
     enhanced = re.sub(r'no\s+background\s+music', '', enhanced, flags=re.IGNORECASE)
     enhanced = re.sub(r'no\s+subtitles', '', enhanced, flags=re.IGNORECASE)
     enhanced = re.sub(r'no\s+text', '', enhanced, flags=re.IGNORECASE)
+    enhanced = re.sub(r'create an \d+-second.*?(video|promotional)', '', enhanced, flags=re.IGNORECASE)
 
     return enhanced.strip()
 
@@ -262,7 +309,9 @@ class PromptService:
 
         negative_segments: List[str] = [
             "distorted face", "deformed mouth", "warped eyes", "asymmetrical face", "mutated facial features",
-            "poorly drawn hands", "deformed hands", "extra fingers", "missing fingers", "fused fingers", "too many fingers",
+            "wobbling pupils", "shifting eyes", "moving eyeballs", "crossed eyes", "misaligned pupils",
+            "teeth morphing", "split lips", "deformed fingers", "morphing fingers", "extra fingers", "missing fingers",
+            "fused fingers", "six fingers", "poorly drawn hands", "deformed hands", "shifting hands",
             "deformed limbs", "disconnected limbs", "floating limbs", "bad anatomy", "bad proportions",
             "blurry face", "blurry eyes", "ghosting", "jitter", "flicker", "low quality", "morphing artifacts",
             "text", "watermark", "ugly", "duplicate", "jpeg artifacts"
