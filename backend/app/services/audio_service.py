@@ -87,40 +87,44 @@ class AudioService:
 
         if is_mythological:
             # Epic mythological acoustic drone + warm tambura/harmonium atmospheric resonance
-            audio_filter = (
-                f"aevalsrc='sin(2*PI*110*t)*0.2 + sin(2*PI*165*t)*0.15 + sin(2*PI*220*t)*0.1 + sin(2*PI*330*t)*0.08':d={dur},"
-                "chorus=0.8:0.9:50:0.4:0.25:2,lowpass=f=1800,volume=0.35"
-            )
+            audio_filter = f"aevalsrc=sin(2*PI*110*t)*0.25+sin(2*PI*165*t)*0.18+sin(2*PI*220*t)*0.12:d={dur},lowpass=f=1800,volume=0.4"
         elif is_vehicle:
-            audio_filter = (
-                f"aevalsrc='sin(2*PI*(90+40*t)*t)*0.3 + (random(0)-0.5)*0.1':d={dur},"
-                "lowpass=f=900,volume=0.4"
-            )
+            audio_filter = f"aevalsrc=sin(2*PI*(90+40*t)*t)*0.3:d={dur},lowpass=f=900,volume=0.4"
         elif is_rain:
-            audio_filter = (
-                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.25,"
-                "lowpass=f=2200,highpass=f=400,volume=0.3"
-            )
+            audio_filter = f"anoisesrc=d={dur}:c=pink:r=48000:a=0.25,lowpass=f=2200,highpass=f=400,volume=0.3"
         else:
-            audio_filter = (
-                f"aevalsrc='sin(2*PI*130*t)*0.2 + sin(2*PI*195*t)*0.15':d={dur},"
-                "flanger=delay=10:depth=5:speed=0.3,chorus=0.7:0.9:45:0.4:0.25:2,volume=0.3"
-            )
+            audio_filter = f"aevalsrc=sin(2*PI*130*t)*0.25+sin(2*PI*195*t)*0.18:d={dur},volume=0.35"
 
         cmd = [
             ffmpeg_cmd, "-y",
             "-f", "lavfi",
             "-i", audio_filter,
             "-c:a", "aac",
-            "-b:a", "128k",
+            "-b:a", "192k",
             "-ar", "48000",
             "-ac", "2",
             str(output_music_path)
         ]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            return output_music_path.exists() and output_music_path.stat().st_size > 0
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if output_music_path.exists() and output_music_path.stat().st_size > 100:
+                logger.info(f"✅ Ambient music generated successfully ({dur}s)")
+                return True
+            else:
+                logger.warning(f"Music synthesis stderr: {res.stderr.decode('utf-8', errors='ignore')[:200]}")
+                # Reliable sine harmonic fallback
+                fallback_cmd = [
+                    ffmpeg_cmd, "-y",
+                    "-f", "lavfi",
+                    "-i", f"sine=frequency=140:duration={dur}",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "48000",
+                    str(output_music_path)
+                ]
+                subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                return output_music_path.exists() and output_music_path.stat().st_size > 100
         except Exception as e:
             logger.warning(f"Music synthesis error: {e}")
             return False

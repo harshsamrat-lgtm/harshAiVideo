@@ -477,34 +477,38 @@ class LightX2VEngine(BaseVideoEngine):
             # Single chunk: rename directly
             shutil.copy(str(rendered_chunk_files[0]), str(out_file))
         else:
-            # Multi-chunk: concatenate seamlessly
-            concat_list_file = out_dir / f"concat_{actual_seed}.txt"
-            with open(concat_list_file, "w", encoding="utf-8") as f:
-                for c_file in rendered_chunk_files:
-                    f.write(f"file '{c_file.resolve().as_posix()}'\n")
+            # Multi-chunk: concatenate seamlessly with rock-solid filter_complex
+            inputs = []
+            filter_inputs = ""
+            for i, c_file in enumerate(rendered_chunk_files):
+                inputs.extend(["-i", str(c_file)])
+                filter_inputs += f"[{i}:v]"
+
+            filter_complex_str = f"{filter_inputs}concat=n={len(rendered_chunk_files)}:v=1:a=0[v]"
 
             concat_cmd = [
                 ffmpeg_cmd, "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_list_file),
+                *inputs,
+                "-filter_complex", filter_complex_str,
+                "-map", "[v]",
                 "-t", str(target_duration),
-                "-c", "copy",
+                "-c:v", "libx264",
+                "-crf", "16",
+                "-preset", "fast",
+                "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart",
                 str(out_file)
             ]
             try:
                 res = subprocess.run(concat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
                 if res.returncode != 0 or not out_file.exists():
-                    logger.warning(f"Concat notice: {res.stderr.decode('utf-8', errors='ignore')[:200]}")
+                    logger.warning(f"Concat filter error: {res.stderr.decode('utf-8', errors='ignore')[:200]}")
                     shutil.copy(str(rendered_chunk_files[0]), str(out_file))
+                else:
+                    logger.info(f"✅ Successfully stitched {len(rendered_chunk_files)} chunks into {target_duration}s master video!")
             except Exception as e:
                 logger.warning(f"Concat error ({e}), using first chunk")
                 shutil.copy(str(rendered_chunk_files[0]), str(out_file))
-
-            if concat_list_file.exists():
-                try: concat_list_file.unlink()
-                except Exception: pass
 
         # Clean up temporary hd chunk files
         for c_file in rendered_chunk_files:
