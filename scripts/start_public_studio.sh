@@ -1,46 +1,74 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Harsh AI Video Studio - 1-Click Public Web Studio Launcher (Cloudflare Tunnel)
+# Harsh AI Video Studio - Self-Healing 1-Click Public Web Studio Launcher
 # ==============================================================================
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
+cd "${ROOT_DIR}"
+
 echo "============================================================"
-echo "Cleaning up old background processes..."
+echo "🚀 Initializing Harsh AI Video Studio on GPU Server..."
 echo "============================================================"
 
-# Kill any old running server on port 8000
+# 1. Clean up any previous processes
+echo "🧹 Cleaning up existing processes on port 8000..."
 pkill -f "uvicorn" || true
-pkill -f "start_studio" || true
 pkill -f "cloudflared" || true
 sleep 1
 
-echo "============================================================"
-echo "Starting Harsh AI Video Studio on Port 8000..."
-echo "============================================================"
+# 2. Ensure python3 & pip3 are available
+PY_BIN="python3"
+if ! command -v python3 &>/dev/null; then
+    PY_BIN="python"
+fi
 
-# 1. Install missing dependencies if needed
-echo "Verifying Python dependencies & FFmpeg..."
+# 3. Ensure core dependencies and FFmpeg are present
+echo "📦 Verifying core dependencies (FastAPI, Uvicorn, Diffusers, FFmpeg)..."
 which ffmpeg >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq ffmpeg)
-pip install -q -r backend/requirements.txt git+https://github.com/huggingface/diffusers || true
+${PY_BIN} -m pip install -q -r backend/requirements.txt || true
+${PY_BIN} -m pip install -q git+https://github.com/huggingface/diffusers transformers accelerate torch || true
 
-# 2. Start Studio Backend on Port 8000 in background
-cd /workspace/harshAiVideo || cd /root/harshAiVideo || cd "$(pwd)"
-PYTHONPATH=backend python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > studio_backend.log 2>&1 &
+# 4. Start backend with explicit PYTHONPATH
+echo "⚙️ Starting FastAPI server on port 8000..."
+export PYTHONPATH="${ROOT_DIR}/backend:${PYTHONPATH:-}"
+
+${PY_BIN} -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > "${ROOT_DIR}/studio_backend.log" 2>&1 &
 BACKEND_PID=$!
+echo "Backend process started (PID: ${BACKEND_PID})"
 
-echo "Backend started successfully (PID: ${BACKEND_PID})"
-sleep 2
+# 5. Wait for backend to be fully healthy on port 8000
+echo "⏳ Waiting for Studio Backend to respond on port 8000..."
+READY=false
+for i in {1..30}; do
+    if curl -s http://127.0.0.1:8000/health >/dev/null 2>&1 || curl -s http://localhost:8000/ >/dev/null 2>&1; then
+        READY=true
+        echo "✅ Studio Backend is ONLINE and responding on http://localhost:8000!"
+        break
+    fi
+    sleep 1
+done
 
-# 2. Download Cloudflare Tunnel if not present
-if [ ! -f "cloudflared" ]; then
-    echo "Downloading secure HTTPS tunnel client..."
-    curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-    chmod +x cloudflared
+if [ "$READY" = false ]; then
+    echo "❌ ERROR: Backend server failed to start on port 8000!"
+    echo "📜 Showing last 30 lines of studio_backend.log:"
+    echo "------------------------------------------------------------"
+    tail -n 30 "${ROOT_DIR}/studio_backend.log" || true
+    echo "------------------------------------------------------------"
+    exit 1
+fi
+
+# 6. Download and start Cloudflare Tunnel
+if [ ! -f "${ROOT_DIR}/cloudflared" ]; then
+    echo "📥 Downloading Cloudflare Tunnel client..."
+    curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o "${ROOT_DIR}/cloudflared"
+    chmod +x "${ROOT_DIR}/cloudflared"
 fi
 
 echo "============================================================"
-echo "YOUR PUBLIC WEB STUDIO LINK WILL APPEAR BELOW:"
+echo "🎉 SUCCESS! YOUR PUBLIC HTTPS STUDIO LINK IS GENERATING BELOW:"
+echo "   (Open the .trycloudflare.com URL in your browser)"
 echo "============================================================"
 
-# 3. Launch tunnel and output public link
-./cloudflared tunnel --url http://localhost:8000
+"${ROOT_DIR}/cloudflared" tunnel --url http://127.0.0.1:8000
