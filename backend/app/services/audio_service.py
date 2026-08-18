@@ -86,40 +86,43 @@ class AudioService:
         is_rain = any(k in p_lower for k in ["rain", "storm", "thunder"])
 
         if is_mythological:
-            # Epic mythological acoustic drone + warm tambura/harmonium atmospheric resonance
+            # Epic mythological acoustic drone + warm atmospheric resonance
             audio_filter = (
-                f"aevalsrc='sin(2*PI*110*t)*0.2 + sin(2*PI*165*t)*0.15 + sin(2*PI*220*t)*0.1 + sin(2*PI*330*t)*0.08':d={dur},"
-                "chorus=0.8:0.9:50:0.4:0.25:2,lowpass=f=1800,volume=0.35"
+                f"aevalsrc='sin(2*PI*110*t)*0.25+sin(2*PI*165*t)*0.2+sin(2*PI*220*t)*0.15':d={dur}:s=48000:c=stereo,"
+                "lowpass=f=2400,volume=0.5"
             )
         elif is_vehicle:
             audio_filter = (
-                f"aevalsrc='sin(2*PI*(90+40*t)*t)*0.3 + (random(0)-0.5)*0.1':d={dur},"
-                "lowpass=f=900,volume=0.4"
+                f"aevalsrc='sin(2*PI*(90+30*t)*t)*0.35+(random(0)-0.5)*0.1':d={dur}:s=48000:c=stereo,"
+                "lowpass=f=1200,volume=0.5"
             )
         elif is_rain:
             audio_filter = (
-                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.25,"
-                "lowpass=f=2200,highpass=f=400,volume=0.3"
+                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.3,"
+                "lowpass=f=2400,highpass=f=300,volume=0.4"
             )
         else:
             audio_filter = (
-                f"aevalsrc='sin(2*PI*130*t)*0.2 + sin(2*PI*195*t)*0.15':d={dur},"
-                "flanger=delay=10:depth=5:speed=0.3,chorus=0.7:0.9:45:0.4:0.25:2,volume=0.3"
+                f"aevalsrc='sin(2*PI*130*t)*0.25+sin(2*PI*195*t)*0.2+sin(2*PI*260*t)*0.15':d={dur}:s=48000:c=stereo,"
+                "lowpass=f=2400,volume=0.5"
             )
 
         cmd = [
             ffmpeg_cmd, "-y",
             "-f", "lavfi",
             "-i", audio_filter,
+            "-t", str(dur),
             "-c:a", "aac",
-            "-b:a", "128k",
+            "-b:a", "192k",
             "-ar", "48000",
             "-ac", "2",
             str(output_music_path)
         ]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if result.returncode != 0:
+                logger.warning(f"FFmpeg music synthesis stderr: {result.stderr.decode('utf-8', errors='ignore')[:200]}")
             return output_music_path.exists() and output_music_path.stat().st_size > 0
         except Exception as e:
             logger.warning(f"Music synthesis error: {e}")
@@ -151,7 +154,7 @@ class AudioService:
             ffmpeg_cmd, "-y",
             "-i", str(voice_path),
             "-i", str(music_path),
-            "-filter_complex", "[0:a]volume=1.4[a1];[1:a]volume=0.25[a2];[a1][a2]amix=inputs=2:duration=longest:dropout_transition=2",
+            "-filter_complex", "[0:a]volume=1.5[a1];[1:a]volume=0.35[a2];[a1][a2]amix=inputs=2:duration=longest:dropout_transition=2",
             "-c:a", "aac",
             "-b:a", "192k",
             "-ar", "48000",
@@ -182,6 +185,8 @@ class AudioService:
             ffmpeg_cmd, "-y",
             "-i", str(video_path),
             "-i", str(audio_path),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
             "-t", str(dur),
             "-c:v", "copy",
             "-c:a", "aac",
@@ -192,7 +197,9 @@ class AudioService:
         ]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if result.returncode != 0:
+                logger.warning(f"Audio mux error: {result.stderr.decode('utf-8', errors='ignore')[:200]}")
             if temp_out.exists() and temp_out.stat().st_size > 0:
                 if final_output_path.exists():
                     final_output_path.unlink()

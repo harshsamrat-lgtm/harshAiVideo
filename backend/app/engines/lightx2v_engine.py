@@ -279,7 +279,7 @@ class LightX2VEngine(BaseVideoEngine):
             active_pipe = _LOADED_PIPES.get(_ACTIVE_MODEL_NAME)
 
             if active_pipe is not None:
-                logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (65 Denoising Steps)...")
+                logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (Duration: {target_duration}s)...")
                 
                 if "CogVideo" in _ACTIVE_MODEL_NAME:
                     video_output = active_pipe(
@@ -291,15 +291,15 @@ class LightX2VEngine(BaseVideoEngine):
                         generator=generator,
                     )
                     frames = video_output.frames[0]
+                    # Export raw video at exact fps to match target_duration naturally (49 frames / 8.0s = 6.125 fps)
+                    export_fps = max(1.0, 49.0 / target_duration)
                     from diffusers.utils import export_to_video
-                    export_to_video(frames, str(raw_temp_video), fps=16)
+                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
                     generated = True
                 
                 elif "SANA" in _ACTIVE_MODEL_NAME:
-                    # SANA-Video 2B generates native video frames at 720p
-                    logger.info("👑 Running SANA-Video 2B inference (720p)...")
+                    logger.info("👑 Running SANA-Video 2B inference (81 frames, 720p)...")
                     try:
-                        # Try with num_frames first (diffusers standard)
                         video_output = active_pipe(
                             prompt=clean_english_prompt,
                             height=704,
@@ -311,19 +311,19 @@ class LightX2VEngine(BaseVideoEngine):
                         )
                     except TypeError as te:
                         logger.info(f"Retrying SANA with 'frames' param: {te}")
-                        # Some diffusers versions use 'frames' instead of 'num_frames'
                         video_output = active_pipe(
                             prompt=clean_english_prompt,
                             height=704,
                             width=1280,
-                            frames=33,
+                            frames=81,
                             num_inference_steps=50,
                             guidance_scale=6.0,
                             generator=generator,
                         )
                     frames = video_output.frames[0]
+                    export_fps = max(1.0, 81.0 / target_duration)
                     from diffusers.utils import export_to_video
-                    export_to_video(frames, str(raw_temp_video), fps=24)
+                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
                     generated = True
                     logger.info("✅ SANA-Video 2B frames exported!")
 
@@ -337,9 +337,10 @@ class LightX2VEngine(BaseVideoEngine):
                         generator=generator,
                     )
                     frames = video_output.frames[0]
+                    export_fps = max(1.0, 32.0 / target_duration)
                     import imageio
                     imageio.mimwrite(
-                        str(raw_temp_video), frames, fps=12,
+                        str(raw_temp_video), frames, fps=export_fps,
                         codec="libx264", quality=9, pixelformat="yuv420p"
                     )
                     generated = True
@@ -363,27 +364,15 @@ class LightX2VEngine(BaseVideoEngine):
                 "generation_time_seconds": round(time.time() - start_time, 2)
             }
 
-        # ── 4. 24FPS SILKY-SMOOTH MOTION BLENDING (NO JERKINESS / STUTTERING) ──
+        # ── 4. 24FPS ULTRA-SMOOTH CINEMATIC MASTERING (GUARANTEED FULL 8.0s) ──
         target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
-        if "SANA" in _ACTIVE_MODEL_NAME:
-            raw_fps = 24
-            raw_duration = 81.0 / 24.0  # SANA: 81 frames at 24fps = 3.375s
-        elif "CogVideo" in _ACTIVE_MODEL_NAME:
-            raw_fps = 16
-            raw_duration = 49.0 / 16.0  # CogVideo: 49 frames at 16fps = 3.0625s
-        else:
-            raw_fps = 12
-            raw_duration = 32.0 / 12.0  # ModelScope: 32 frames at 12fps = 2.67s
-        time_stretch = target_duration / max(1.0, raw_duration)
-
         vf_filter = (
-            f"setpts={time_stretch:.4f}*PTS,"
-            f"minterpolate=fps=24:mi_mode=blend,"
+            f"fps=24,"
             f"scale=w={target_w}:h={target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={target_w}:{target_h},"
-            f"unsharp=5:5:1.2:5:5:0.6,"
+            f"unsharp=5:5:1.0:5:5:0.5,"
             f"eq=contrast=1.05:saturation=1.05"
         )
 
@@ -394,7 +383,7 @@ class LightX2VEngine(BaseVideoEngine):
             "-t", str(target_duration),
             "-c:v", "libx264",
             "-crf", "16",
-            "-preset", "medium",
+            "-preset", "fast",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             str(out_file)
@@ -406,16 +395,7 @@ class LightX2VEngine(BaseVideoEngine):
             )
             if result.returncode != 0:
                 logger.warning(f"FFmpeg enhance error: {result.stderr.decode('utf-8', errors='ignore')[:300]}")
-                # Fallback: simple setpts stretch
-                fallback_cmd = [
-                    ffmpeg_cmd, "-y",
-                    "-i", str(raw_temp_video),
-                    "-vf", f"setpts={time_stretch:.4f}*PTS,scale={target_w}:{target_h}",
-                    "-t", str(target_duration),
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                    str(out_file)
-                ]
-                subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                shutil.copy(str(raw_temp_video), str(out_file))
         except Exception as e:
             logger.warning(f"FFmpeg notice ({e}), using raw video")
             shutil.copy(str(raw_temp_video), str(out_file))
