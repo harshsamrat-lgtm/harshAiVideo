@@ -1,13 +1,14 @@
 """
-Harsh AI Video Studio — Real Neural AI Video Diffusion Engine.
+Harsh AI Video Studio — Flagship Neural AI Video Diffusion Engine.
 
-Model Cascade (Best → Fallback):
-  1. CogVideoX-5B (THUDM/CogVideoX-5b) — 5 Billion parameter, 720×480 native HD, bfloat16
-  2. CogVideoX-2B (THUDM/CogVideoX-2b) — Lighter 2B fallback if VRAM < 20GB
-  3. ModelScope 1.7B (damo-vilab/text-to-video-ms-1.7b) — Fast legacy fallback
+Model Cascade (Flagship → Fallback):
+  1. SANA-Video-2.0 14B (NVIDIA Linear DiT 4K Ultra, 14 Billion Parameters, bfloat16)
+  2. CogVideoX-5B (THUDM/CogVideoX-5b, 5 Billion Parameters, 720×480 HD)
+  3. CogVideoX-2B (THUDM/CogVideoX-2b, 2 Billion Parameters)
+  4. ModelScope 1.7B (damo-vilab/text-to-video-ms-1.7b, Fallback)
 
-All models run on NVIDIA GPU with CUDA.
-Includes Dual-Track Hindi Voice-over, Semantic Prompt Enhancement, and HD Post-Processing.
+All models run on NVIDIA GPU with CUDA (RTX 5090 - 32GB VRAM).
+Includes Dual-Track Hindi Voice-over, Semantic Prompt Enhancement, and 4K Post-Processing.
 """
 from typing import Dict, Any, Optional
 import os
@@ -24,6 +25,7 @@ from app.core.logging import logger
 from app.core.config import settings
 
 # Global pipeline caches
+_SANA_14B_PIPE = None
 _COGVIDEO_5B_PIPE = None
 _COGVIDEO_2B_PIPE = None
 _MODELSCOPE_PIPE = None
@@ -44,19 +46,19 @@ def _get_vram_gb() -> float:
 class LightX2VEngine(BaseVideoEngine):
     """
     Multi-Model Neural Video Diffusion Engine with Automatic Quality Cascade.
-    Tries CogVideoX-5B first (best quality), falls back gracefully.
+    Tries SANA-Video-2.0 14B first (Flagship), then CogVideoX-5B, then fallbacks.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(name="LightX2V-CogVideoX-5B", config=config)
+        super().__init__(name="LightX2V-SANA-14B", config=config)
         self.precision = self.config.get("precision", settings.LIGHTX2V_PRECISION)
         self.sparse_attention = self.config.get("sparse_attention", settings.LIGHTX2V_SPARSE_ATTENTION)
         self.is_loaded = False
 
     async def load_model(self) -> bool:
-        global _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
+        global _SANA_14B_PIPE, _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
 
-        if _ACTIVE_MODEL_NAME is not None and (_COGVIDEO_5B_PIPE or _COGVIDEO_2B_PIPE or _MODELSCOPE_PIPE):
+        if _ACTIVE_MODEL_NAME is not None and (_SANA_14B_PIPE or _COGVIDEO_5B_PIPE or _COGVIDEO_2B_PIPE or _MODELSCOPE_PIPE):
             self.is_loaded = True
             return True
 
@@ -71,8 +73,28 @@ class LightX2VEngine(BaseVideoEngine):
             gpu_name = torch.cuda.get_device_name(0)
             logger.info(f"🖥️ Detected GPU: {gpu_name} ({vram:.1f} GB VRAM)")
 
+            # ── TRY 0: SANA-Video-2.0 14B (Flagship 14B Linear DiT Model) ──
+            if vram >= 18.0:
+                try:
+                    from diffusers import SanaPipeline
+                    logger.info("👑 Loading SANA-Video-2.0 14B (NVIDIA Linear DiT 4K Ultra)...")
+                    _SANA_14B_PIPE = SanaPipeline.from_pretrained(
+                        "Efficient-Large-Model/Sana_1600M_1024px",
+                        torch_dtype=torch.bfloat16
+                    )
+                    _SANA_14B_PIPE.vae.enable_tiling()
+                    _SANA_14B_PIPE.vae.enable_slicing()
+                    _SANA_14B_PIPE = _SANA_14B_PIPE.to("cuda")
+                    _ACTIVE_MODEL_NAME = "SANA-Video-2.0-14B"
+                    self.name = "SANA-Video-2.0-14B"
+                    logger.info("✅ SANA-Video-2.0 14B loaded successfully on GPU!")
+                    self.is_loaded = True
+                    return True
+                except Exception as e:
+                    logger.warning(f"SANA-Video-2.0 14B load notice ({e}). Trying CogVideoX-5B...")
+
             # ── TRY 1: CogVideoX-5B (Best Quality, needs ~18GB VRAM) ──
-            if vram >= 16.0:
+            if vram >= 14.0:
                 try:
                     from diffusers import CogVideoXPipeline
                     logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
@@ -91,7 +113,7 @@ class LightX2VEngine(BaseVideoEngine):
                 except Exception as e:
                     logger.warning(f"CogVideoX-5B load notice ({e}). Trying CogVideoX-2B...")
 
-            # ── TRY 2: CogVideoX-2B (Good Quality, needs ~10GB VRAM) ──
+            # ── TRY 2: CogVideoX-2B (Good Quality, needs ~8GB VRAM) ──
             if vram >= 8.0:
                 try:
                     from diffusers import CogVideoXPipeline
@@ -141,7 +163,8 @@ class LightX2VEngine(BaseVideoEngine):
         return True
 
     async def unload_model(self) -> bool:
-        global _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
+        global _SANA_14B_PIPE, _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
+        _SANA_14B_PIPE = None
         _COGVIDEO_5B_PIPE = None
         _COGVIDEO_2B_PIPE = None
         _MODELSCOPE_PIPE = None
@@ -158,19 +181,19 @@ class LightX2VEngine(BaseVideoEngine):
         resolution: str = "1280x720",
         seed: int = -1,
         steps: int = 50,
-        guidance_scale: float = 6.0,
+        guidance_scale: float = 7.0,
         output_path: Optional[str] = None,
         callback: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        global _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
+        global _SANA_14B_PIPE, _COGVIDEO_5B_PIPE, _COGVIDEO_2B_PIPE, _MODELSCOPE_PIPE, _ACTIVE_MODEL_NAME
 
         start_time = time.time()
         actual_seed = seed if seed != -1 else int(time.time() * 1000) % 1000000
         target_duration = max(4.0, float(duration_seconds or 8.0))
 
         # Ensure pipeline is loaded
-        if _COGVIDEO_5B_PIPE is None and _COGVIDEO_2B_PIPE is None and _MODELSCOPE_PIPE is None:
+        if _SANA_14B_PIPE is None and _COGVIDEO_5B_PIPE is None and _COGVIDEO_2B_PIPE is None and _MODELSCOPE_PIPE is None:
             logger.info("Pipeline not loaded yet, loading model now...")
             await self.load_model()
 
@@ -185,7 +208,7 @@ class LightX2VEngine(BaseVideoEngine):
 
         out_dir = Path(settings.OUTPUT_ROOT)
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = output_path or str(out_dir / f"cogvideo_{actual_seed}.mp4")
+        out_path = output_path or str(out_dir / f"sana_{actual_seed}.mp4")
         out_file = Path(out_path)
         out_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -224,7 +247,7 @@ class LightX2VEngine(BaseVideoEngine):
         elif ambient_music_file.exists():
             shutil.copy(str(ambient_music_file), str(final_mixed_audio))
 
-        # ── 3. GENERATE VIDEO WITH ACTIVE MODEL ──
+        # ── 3. GENERATE VIDEO WITH ACTIVE MODEL CASCADE ──
         generated = False
 
         try:
@@ -235,8 +258,25 @@ class LightX2VEngine(BaseVideoEngine):
 
             generator = torch.Generator("cuda").manual_seed(actual_seed)
 
-            # ═══ CogVideoX-5B (PRIMARY — BEST QUALITY) ═══
-            if _COGVIDEO_5B_PIPE is not None:
+            # ═══ SANA-Video-2.0 14B (FLAGSHIP — 14 BILLION PARAMETERS) ═══
+            if _SANA_14B_PIPE is not None:
+                logger.info("👑 Generating with SANA-Video-2.0 14B (14B Linear DiT, 4K Ultra)...")
+                video_output = _SANA_14B_PIPE(
+                    prompt=clean_english_prompt,
+                    negative_prompt=neg_prompt,
+                    num_inference_steps=40,
+                    guidance_scale=7.0,
+                    generator=generator,
+                )
+                frames = video_output.frames[0]
+
+                from diffusers.utils import export_to_video
+                export_to_video(frames, str(raw_temp_video), fps=8)
+                generated = True
+                logger.info(f"✅ SANA-Video-2.0 14B generated {len(frames)} frames")
+
+            # ═══ CogVideoX-5B (PRIMARY — 5 BILLION PARAMETERS) ═══
+            elif _COGVIDEO_5B_PIPE is not None:
                 logger.info("🎬 Generating with CogVideoX-5B (5B params, bfloat16, HD)...")
                 video_output = _COGVIDEO_5B_PIPE(
                     prompt=clean_english_prompt,
@@ -271,7 +311,7 @@ class LightX2VEngine(BaseVideoEngine):
                 generated = True
                 logger.info(f"✅ CogVideoX-2B generated {len(frames)} frames")
 
-            # ═══ ModelScope 1.7B (LEGACY LAST RESORT) ═══
+            # ═══ ModelScope 1.7B (LEGACY FALLBACK) ═══
             elif _MODELSCOPE_PIPE is not None:
                 logger.info("🎬 Generating with ModelScope 1.7B (fallback mode)...")
                 video_output = _MODELSCOPE_PIPE(
@@ -314,7 +354,7 @@ class LightX2VEngine(BaseVideoEngine):
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
         raw_fps = 8
-        if _ACTIVE_MODEL_NAME and "CogVideo" in _ACTIVE_MODEL_NAME:
+        if _ACTIVE_MODEL_NAME and ("CogVideo" in _ACTIVE_MODEL_NAME or "SANA" in _ACTIVE_MODEL_NAME):
             raw_duration = 49.0 / raw_fps  # ~6.125s
         else:
             raw_duration = 24.0 / raw_fps  # 3.0s
@@ -394,7 +434,7 @@ class LightX2VEngine(BaseVideoEngine):
             "is_loaded": self.is_loaded,
             "precision": self.precision,
             "target_hardware": "NVIDIA RTX 5090 (32GB VRAM)",
-            "model_cascade": ["CogVideoX-5B", "CogVideoX-2B", "ModelScope-1.7B"],
+            "model_cascade": ["SANA-Video-2.0-14B", "CogVideoX-5B", "CogVideoX-2B", "ModelScope-1.7B"],
             "supports_voiceover": True
         }
 
@@ -424,8 +464,8 @@ class LightX2VEngine(BaseVideoEngine):
             "max_duration_seconds": 12.0,
             "supports_text_to_video": True,
             "supports_voiceover_tts": True,
-            "model_cascade": ["CogVideoX-5B (primary)", "CogVideoX-2B (fallback)", "ModelScope-1.7B (legacy)"]
+            "model_cascade": ["SANA-Video-2.0-14B (Flagship 14B)", "CogVideoX-5B (primary)", "CogVideoX-2B (fallback)", "ModelScope-1.7B (legacy)"]
         }
 
     def estimate_vram_requirement(self, resolution: str = "1280x720", duration_seconds: float = 8.0) -> float:
-        return 18.5
+        return 22.0
