@@ -41,7 +41,7 @@ class Settings(_BaseSettings):
 
     # Execution Topology
     GPU_MODE: str = "remote"  # 'remote' | 'local'
-    ENGINE: str = "lightx2v"   # 'lightx2v' | 'wan22'
+    ENGINE: str = "sana-video-2b"   # Dedicated SANA-Video 2B Engine
 
     # Remote GPU Server Connectivity
     GPU_SERVER_URL: Optional[str] = None

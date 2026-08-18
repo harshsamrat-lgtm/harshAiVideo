@@ -32,23 +32,23 @@ _ACTIVE_MODEL_NAME = None
 
 class LightX2VEngine(BaseVideoEngine):
     """
-    Multi-Model Neural Video Diffusion Engine with Dynamic Model Loading.
-    Ensures exact requested model (CogVideoX-5B, SANA 14B, etc.) is loaded without sticky fallbacks.
+    Dedicated SANA-Video 2B (NVIDIA Linear DiT) AI Video Diffusion Engine.
+    Delivers 81 high-definition frames at 720p HD with ultra-low latency on RTX 5090.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(name="CogVideoX-5B-HD", config=config)
+        super().__init__(name="SANA-Video-2B-720p", config=config)
         self.precision = self.config.get("precision", settings.LIGHTX2V_PRECISION)
         self.sparse_attention = self.config.get("sparse_attention", settings.LIGHTX2V_SPARSE_ATTENTION)
         self.is_loaded = False
 
-    async def load_model(self, target_model: str = "cogvideox-5b") -> bool:
+    async def load_model(self, target_model: str = "sana-video-2b") -> bool:
         global _LOADED_PIPES, _ACTIVE_MODEL_NAME
 
-        req_engine = (target_model or "cogvideox-5b").lower()
+        req_engine = (target_model or "sana-video-2b").lower()
 
         # If requested engine is already loaded and active, reuse it
-        if _ACTIVE_MODEL_NAME and req_engine in _ACTIVE_MODEL_NAME.lower() and _ACTIVE_MODEL_NAME in _LOADED_PIPES:
+        if _ACTIVE_MODEL_NAME and ("sana" in _ACTIVE_MODEL_NAME.lower() or req_engine in _ACTIVE_MODEL_NAME.lower()) and _ACTIVE_MODEL_NAME in _LOADED_PIPES:
             self.is_loaded = True
             return True
 
@@ -61,11 +61,11 @@ class LightX2VEngine(BaseVideoEngine):
 
             vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             gpu_name = torch.cuda.get_device_name(0)
-            logger.info(f"🖥️ Detected GPU: {gpu_name} ({vram:.1f} GB VRAM) | Target Engine: {req_engine}")
+            logger.info(f"🖥️ Detected GPU: {gpu_name} ({vram:.1f} GB VRAM) | Target Engine: SANA-Video-2B")
 
             # ── UNLOAD previous model from VRAM before loading new one ──
             if _LOADED_PIPES:
-                logger.info(f"🗑️ Unloading previous model [{_ACTIVE_MODEL_NAME}] from VRAM...")
+                logger.info(f"🗑️ Unloading previous model from VRAM...")
                 for key in list(_LOADED_PIPES.keys()):
                     del _LOADED_PIPES[key]
                 _LOADED_PIPES.clear()
@@ -74,60 +74,58 @@ class LightX2VEngine(BaseVideoEngine):
             torch.cuda.empty_cache()
             logger.info(f"✅ GPU VRAM cleared. Free: {torch.cuda.mem_get_info(0)[0] / (1024**3):.1f} GB")
 
-            # ── 1. COGVIDEOX-5B (Primary requested model) ──
-            if "5b" in req_engine or "cogvideox-5b" in req_engine:
+            # ── 1. SANA-VIDEO-2B 720p (Primary Dedicated Model) ──
+            try:
+                try:
+                    from diffusers import SanaVideoPipeline
+                except ImportError:
+                    logger.info("📦 SanaVideoPipeline not found. Upgrading diffusers from GitHub...")
+                    import subprocess, sys
+                    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "git+https://github.com/huggingface/diffusers", "timm", "accelerate"], check=False)
+                    from diffusers import SanaVideoPipeline
+
+                logger.info("👑 Loading SANA-Video 2B (NVIDIA Linear DiT 720p HD Model)...")
+                for model_repo in [
+                    "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
+                    "Efficient-Large-Model/SANA-Video_2B_480p_diffusers",
+                ]:
+                    try:
+                        logger.info(f"   Loading SANA model weights from [{model_repo}]...")
+                        pipe = SanaVideoPipeline.from_pretrained(
+                            model_repo,
+                            torch_dtype=torch.bfloat16
+                        ).to("cuda")
+
+                        _LOADED_PIPES["SANA-Video-2B"] = pipe
+                        _ACTIVE_MODEL_NAME = "SANA-Video-2B"
+                        self.name = "SANA-Video-2B-720p"
+                        logger.info(f"✅ SANA-Video 2B loaded successfully on RTX 5090 from [{model_repo}]!")
+                        self.is_loaded = True
+                        return True
+                    except Exception as repo_err:
+                        logger.warning(f"   Notice loading {model_repo}: {repo_err}")
+
+            except Exception as e:
+                logger.error(f"❌ SANA-Video load error: {e}", exc_info=True)
+
+            # ── 2. BACKUP LOADERS IF SANA STILL DOWNLOADING ──
+            if "5b" in req_engine or "cogvideox" in req_engine or not _LOADED_PIPES:
                 try:
                     from diffusers import CogVideoXPipeline
-                    logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
+                    logger.info("🚀 Loading CogVideoX-5B...")
                     pipe = CogVideoXPipeline.from_pretrained(
                         "THUDM/CogVideoX-5b",
-                        torch_dtype=torch.float16
+                        torch_dtype=torch.bfloat16
                     ).to("cuda")
-                    
-                    # On 32GB/48GB GPU (RTX 5090), we do NOT enable VAE tiling/slicing to prevent eye/mouth seam distortions
+
                     _LOADED_PIPES["CogVideoX-5B"] = pipe
                     _ACTIVE_MODEL_NAME = "CogVideoX-5B"
                     self.name = "CogVideoX-5B-HD"
-                    logger.info("✅ CogVideoX-5B loaded successfully on GPU (Full VAE precision without tiling)!")
+                    logger.info("✅ CogVideoX-5B loaded on GPU!")
                     self.is_loaded = True
                     return True
-                except Exception as e:
-                    logger.error(f"❌ CogVideoX-5B load error: {e}", exc_info=True)
-
-            # ── 2. SANA-VIDEO-2B 720p (NVIDIA Linear DiT Video Model) ──
-            if "sana" in req_engine:
-                try:
-                    try:
-                        from diffusers import SanaVideoPipeline
-                    except ImportError:
-                        logger.info("📦 SanaVideoPipeline not found in diffusers. Auto-upgrading diffusers from GitHub...")
-                        import subprocess, sys
-                        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "git+https://github.com/huggingface/diffusers", "timm", "accelerate"], check=False)
-                        from diffusers import SanaVideoPipeline
-
-                    logger.info("👑 Loading SANA-Video 2B (NVIDIA Linear DiT Video)...")
-                    for model_repo in [
-                        "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
-                        "Efficient-Large-Model/SANA-Video_2B_480p_diffusers",
-                    ]:
-                        try:
-                            logger.info(f"   Attempting to load SANA from [{model_repo}]...")
-                            pipe = SanaVideoPipeline.from_pretrained(
-                                model_repo,
-                                torch_dtype=torch.bfloat16
-                            ).to("cuda")
-
-                            _LOADED_PIPES["SANA-Video-2B"] = pipe
-                            _ACTIVE_MODEL_NAME = "SANA-Video-2B"
-                            self.name = "SANA-Video-2B-720p"
-                            logger.info(f"✅ SANA-Video 2B loaded successfully from [{model_repo}]!")
-                            self.is_loaded = True
-                            return True
-                        except Exception as repo_err:
-                            logger.warning(f"   Notice loading {model_repo}: {repo_err}")
-
-                except Exception as e:
-                    logger.error(f"❌ SANA-Video load error: {e}", exc_info=True)
+                except Exception as ce:
+                    logger.error(f"CogVideo fallback load error: {ce}")
 
             # ── 3. LTX-VIDEO (High Speed 24fps DiT Model) ──
             if "ltx" in req_engine or "wan" in req_engine or "lightx2v" in req_engine:
@@ -331,7 +329,65 @@ class LightX2VEngine(BaseVideoEngine):
             if active_pipe is not None:
                 logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (Duration: {target_duration}s, Stable Guidance: 6.0)...")
                 
-                if "CogVideo" in _ACTIVE_MODEL_NAME:
+                if "SANA" in _ACTIVE_MODEL_NAME:
+                    logger.info("👑 Running SANA-Video 2B inference (81 frames, 720p HD)...")
+                    try:
+                        if ref_image is not None:
+                            video_output = active_pipe(
+                                image=ref_image,
+                                prompt=clean_english_prompt,
+                                height=704,
+                                width=1280,
+                                num_frames=81,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                generator=generator,
+                            )
+                        else:
+                            video_output = active_pipe(
+                                prompt=clean_english_prompt,
+                                height=704,
+                                width=1280,
+                                num_frames=81,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                generator=generator,
+                            )
+                    except TypeError as te:
+                        logger.info(f"Retrying SANA with 'frames' param: {te}")
+                        if ref_image is not None:
+                            video_output = active_pipe(
+                                image=ref_image,
+                                prompt=clean_english_prompt,
+                                height=704,
+                                width=1280,
+                                frames=81,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                generator=generator,
+                            )
+                        else:
+                            video_output = active_pipe(
+                                prompt=clean_english_prompt,
+                                height=704,
+                                width=1280,
+                                frames=81,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                generator=generator,
+                            )
+                    frames = video_output.frames[0]
+                    export_fps = max(1, int(round(81.0 / target_duration)))
+                    try:
+                        from diffusers.utils import export_to_video
+                        export_to_video(frames, str(raw_temp_video), fps=export_fps)
+                    except Exception as ex:
+                        import imageio
+                        imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
+                    generated = True
+                    logger.info("✅ SANA-Video 2B frames exported successfully!")
+
+                elif "CogVideo" in _ACTIVE_MODEL_NAME:
                     try:
                         if ref_image is not None:
                             logger.info("🖼️ Animating video using reference image conditioning...")
@@ -396,40 +452,6 @@ class LightX2VEngine(BaseVideoEngine):
                         import imageio
                         imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
                     generated = True
-                
-                elif "SANA" in _ACTIVE_MODEL_NAME:
-                    logger.info("👑 Running SANA-Video 2B inference (81 frames, 720p)...")
-                    try:
-                        video_output = active_pipe(
-                            prompt=clean_english_prompt,
-                            height=704,
-                            width=1280,
-                            num_frames=81,
-                            num_inference_steps=50,
-                            guidance_scale=6.0,
-                            generator=generator,
-                        )
-                    except TypeError as te:
-                        logger.info(f"Retrying SANA with 'frames' param: {te}")
-                        video_output = active_pipe(
-                            prompt=clean_english_prompt,
-                            height=704,
-                            width=1280,
-                            frames=81,
-                            num_inference_steps=50,
-                            guidance_scale=6.0,
-                            generator=generator,
-                        )
-                    frames = video_output.frames[0]
-                    export_fps = max(1, int(round(81.0 / target_duration)))
-                    try:
-                        from diffusers.utils import export_to_video
-                        export_to_video(frames, str(raw_temp_video), fps=export_fps)
-                    except Exception as ex:
-                        import imageio
-                        imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
-                    generated = True
-                    logger.info("✅ SANA-Video 2B frames exported!")
 
                 elif "LTX" in _ACTIVE_MODEL_NAME:
                     logger.info("🚀 Running LTX-Video inference (24fps DiT, 97 frames)...")
