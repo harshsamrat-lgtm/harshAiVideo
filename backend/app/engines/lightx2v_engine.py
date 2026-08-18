@@ -76,14 +76,17 @@ class LightX2VEngine(BaseVideoEngine):
             # ── TRY 0: SANA-Video-2.0 14B (Flagship 14B Linear DiT Model) ──
             if vram >= 18.0:
                 try:
-                    from diffusers import SanaPipeline
+                    from diffusers import DiffusionPipeline
                     logger.info("👑 Loading SANA-Video-2.0 14B (NVIDIA Linear DiT 4K Ultra)...")
-                    _SANA_14B_PIPE = SanaPipeline.from_pretrained(
+                    _SANA_14B_PIPE = DiffusionPipeline.from_pretrained(
                         "Efficient-Large-Model/Sana_1600M_1024px",
                         torch_dtype=torch.bfloat16
                     )
-                    _SANA_14B_PIPE.vae.enable_tiling()
-                    _SANA_14B_PIPE.vae.enable_slicing()
+                    if hasattr(_SANA_14B_PIPE, "vae"):
+                        if hasattr(_SANA_14B_PIPE.vae, "enable_tiling"):
+                            _SANA_14B_PIPE.vae.enable_tiling()
+                        if hasattr(_SANA_14B_PIPE.vae, "enable_slicing"):
+                            _SANA_14B_PIPE.vae.enable_slicing()
                     _SANA_14B_PIPE = _SANA_14B_PIPE.to("cuda")
                     _ACTIVE_MODEL_NAME = "SANA-Video-2.0-14B"
                     self.name = "SANA-Video-2.0-14B"
