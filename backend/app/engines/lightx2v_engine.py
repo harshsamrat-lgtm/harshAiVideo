@@ -236,17 +236,23 @@ class LightX2VEngine(BaseVideoEngine):
 
         neg_prompt = (
             negative_prompt or
-            "blurry, motion blur, ghosting, out of frame, cropped limbs, cut off objects, "
-            "distorted face, deformed anatomy, bad proportions, extra limbs, ugly, duplicate, jpeg artifacts, text, watermark"
+            "distorted face, deformed mouth, warped eyes, asymmetrical face, mutated facial features, "
+            "poorly drawn hands, deformed hands, extra fingers, missing fingers, fused fingers, too many fingers, "
+            "deformed limbs, disconnected limbs, floating limbs, bad anatomy, bad proportions, "
+            "blurry face, blurry eyes, ghosting, jitter, flicker, low quality, morphing artifacts, "
+            "text, watermark, ugly, duplicate, jpeg artifacts"
         )
 
         # ── 2. SYNTHESIZE NEURAL HINDI VOICEOVER & AMBIENT MUSIC ──
         has_voiceover = False
         if voiceover_dialogue:
+            # Choose voice: Swara for kids/conversational, Madhur for epic/narrator
+            is_child_or_female = any(w in visual_raw for w in ["बच्चे", "बच्चा", "बच्ची", "लड़की", "बालक", "माता"])
+            chosen_voice = "hi-IN-SwaraNeural" if is_child_or_female else "hi-IN-MadhurNeural"
             has_voiceover = await audio_service.generate_hindi_voiceover_speech(
                 text=voiceover_dialogue,
                 output_speech_path=voice_speech_file,
-                voice="hi-IN-MadhurNeural"
+                voice=chosen_voice
             )
 
         audio_service.generate_ambient_music_for_prompt(

@@ -31,11 +31,10 @@ class AudioService:
         # 1. Try Microsoft Edge Neural Hindi TTS (Studio Quality, High Fidelity)
         try:
             import edge_tts
-            # rate="-5%" for majestic dramatic storytelling pace
-            communicate = edge_tts.Communicate(text=text, voice=voice, rate="-5%", pitch="-2Hz")
+            communicate = edge_tts.Communicate(text=text, voice=voice, rate="+0%", pitch="+0Hz", volume="+25%")
             await communicate.save(str(output_speech_path))
             if output_speech_path.exists() and output_speech_path.stat().st_size > 100:
-                logger.info(f"✅ Edge-TTS Hindi Voice-over generated ({output_speech_path.stat().st_size / 1024:.1f} KB)")
+                logger.info(f"✅ Edge-TTS Hindi Voice-over generated ({output_speech_path.stat().st_size / 1024:.1f} KB) using {voice}")
                 return True
         except Exception as e:
             logger.warning(f"Edge-TTS notice ({e}). Trying gTTS fallback...")
