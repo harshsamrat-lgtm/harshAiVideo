@@ -55,9 +55,9 @@ async def _generation_task(job_id: str, payload: dict):
         from app.engines import get_active_engine
         engine = get_active_engine(selected_engine_name)
 
-        if not engine.is_loaded:
-            logger.info(f"[Task:{job_id}] Loading engine: {engine.name}")
-            await engine.load_model()
+        # ALWAYS call load_model with target engine name so it loads the CORRECT model
+        logger.info(f"[Task:{job_id}] Requesting engine load for: {selected_engine_name}")
+        await engine.load_model(target_model=selected_engine_name)
 
         await _update_job(job_id, JobState.LOADING, 15.0, f"Engine '{engine.name}' ready.")
         await asyncio.sleep(0.1)
