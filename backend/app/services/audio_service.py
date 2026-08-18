@@ -146,12 +146,12 @@ class AudioService:
             shutil.copy(str(voice_path), str(final_audio_path))
             return True
 
-        # Use FFmpeg amix with custom volume filters for studio broadcast clarity
+        # Use FFmpeg amix with duration=longest so background music plays for full target duration
         cmd = [
             ffmpeg_cmd, "-y",
             "-i", str(voice_path),
             "-i", str(music_path),
-            "-filter_complex", "[0:a]volume=1.4[a1];[1:a]volume=0.25[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2",
+            "-filter_complex", "[0:a]volume=1.4[a1];[1:a]volume=0.25[a2];[a1][a2]amix=inputs=2:duration=longest:dropout_transition=2",
             "-c:a", "aac",
             "-b:a", "192k",
             "-ar", "48000",
@@ -163,28 +163,30 @@ class AudioService:
             return final_audio_path.exists() and final_audio_path.stat().st_size > 0
         except Exception as e:
             logger.warning(f"Audio mixing failed: {e}")
-            shutil.copy(str(voice_path), str(final_audio_path))
+            shutil.copy(str(music_path if music_path.exists() else voice_path), str(final_audio_path))
             return True
 
     @staticmethod
     def mux_audio_into_video(
         video_path: Path,
         audio_path: Path,
-        final_output_path: Path
+        final_output_path: Path,
+        duration_seconds: float = 8.0
     ) -> bool:
-        """Muxes the combined voice-over + music audio track into the MP4 video."""
+        """Muxes the combined voice-over + music audio track into the MP4 video without truncating video."""
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
         temp_out = final_output_path.parent / f"mux_{final_output_path.name}"
+        dur = max(4.0, float(duration_seconds or 8.0))
         
         cmd = [
             ffmpeg_cmd, "-y",
             "-i", str(video_path),
             "-i", str(audio_path),
+            "-t", str(dur),
             "-c:v", "copy",
             "-c:a", "aac",
             "-b:a", "192k",
             "-ar", "48000",
-            "-shortest",
             "-movflags", "+faststart",
             str(temp_out)
         ]

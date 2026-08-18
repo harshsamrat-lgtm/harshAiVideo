@@ -376,12 +376,11 @@ class LightX2VEngine(BaseVideoEngine):
         else:
             raw_fps = 12
             raw_duration = 32.0 / 12.0  # ModelScope: 32 frames at 12fps = 2.67s
-        time_stretch = target_duration / raw_duration
+        time_stretch = target_duration / max(1.0, raw_duration)
 
         vf_filter = (
-            f"setpts={time_stretch}*PTS,"
-            f"tblend=all_mode=average,"
-            f"fps=24,"
+            f"setpts={time_stretch:.4f}*PTS,"
+            f"minterpolate=fps=24:mi_mode=blend,"
             f"scale=w={target_w}:h={target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={target_w}:{target_h},"
             f"unsharp=5:5:1.2:5:5:0.6,"
@@ -395,7 +394,7 @@ class LightX2VEngine(BaseVideoEngine):
             "-t", str(target_duration),
             "-c:v", "libx264",
             "-crf", "16",
-            "-preset", "slow",
+            "-preset", "medium",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             str(out_file)
@@ -406,8 +405,17 @@ class LightX2VEngine(BaseVideoEngine):
                 enhance_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300
             )
             if result.returncode != 0:
-                logger.warning(f"FFmpeg enhance notice: {result.stderr[:200]}")
-                shutil.copy(str(raw_temp_video), str(out_file))
+                logger.warning(f"FFmpeg enhance error: {result.stderr.decode('utf-8', errors='ignore')[:300]}")
+                # Fallback: simple setpts stretch
+                fallback_cmd = [
+                    ffmpeg_cmd, "-y",
+                    "-i", str(raw_temp_video),
+                    "-vf", f"setpts={time_stretch:.4f}*PTS,scale={target_w}:{target_h}",
+                    "-t", str(target_duration),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    str(out_file)
+                ]
+                subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         except Exception as e:
             logger.warning(f"FFmpeg notice ({e}), using raw video")
             shutil.copy(str(raw_temp_video), str(out_file))
@@ -423,7 +431,8 @@ class LightX2VEngine(BaseVideoEngine):
             audio_service.mux_audio_into_video(
                 video_path=out_file,
                 audio_path=final_mixed_audio,
-                final_output_path=out_file
+                final_output_path=out_file,
+                duration_seconds=target_duration
             )
             for f in [voice_speech_file, ambient_music_file, final_mixed_audio]:
                 if f.exists():
