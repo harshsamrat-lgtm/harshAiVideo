@@ -90,36 +90,28 @@ class LightX2VEngine(BaseVideoEngine):
                 except Exception as e:
                     logger.error(f"❌ CogVideoX-5B load error: {e}", exc_info=True)
 
-            # ── 2. SANA 1600M (Ultra-HD Keyframe + Video Synthesis) ──
+            # ── 2. SANA-Video 2B 720p (NVIDIA Linear DiT Video Model) ──
             if "sana" in req_engine:
                 try:
-                    try:
-                        from diffusers import SanaPipeline
-                        logger.info("👑 Loading SANA 1600M (Ultra-HD Keyframe Generator)...")
-                        pipe = SanaPipeline.from_pretrained(
-                            "Efficient-Large-Model/Sana_1600M_1024px",
-                            torch_dtype=torch.bfloat16
-                        ).to("cuda")
-                    except ImportError:
-                        from diffusers import DiffusionPipeline
-                        logger.info("👑 Loading SANA 1600M via DiffusionPipeline...")
-                        pipe = DiffusionPipeline.from_pretrained(
-                            "Efficient-Large-Model/Sana_1600M_1024px",
-                            torch_dtype=torch.bfloat16
-                        ).to("cuda")
+                    from diffusers import SanaVideoPipeline
+                    logger.info("👑 Loading SANA-Video 2B 720p (NVIDIA Linear DiT Video)...")
+                    pipe = SanaVideoPipeline.from_pretrained(
+                        "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
+                        torch_dtype=torch.bfloat16
+                    ).to("cuda")
 
                     if hasattr(pipe, "vae"):
                         if hasattr(pipe.vae, "enable_tiling"): pipe.vae.enable_tiling()
                         if hasattr(pipe.vae, "enable_slicing"): pipe.vae.enable_slicing()
 
-                    _LOADED_PIPES["SANA-1600M"] = pipe
-                    _ACTIVE_MODEL_NAME = "SANA-1600M"
-                    self.name = "SANA-1600M-UltraHD"
-                    logger.info("✅ SANA 1600M loaded successfully on GPU!")
+                    _LOADED_PIPES["SANA-Video-2B"] = pipe
+                    _ACTIVE_MODEL_NAME = "SANA-Video-2B"
+                    self.name = "SANA-Video-2B-720p"
+                    logger.info("✅ SANA-Video 2B 720p loaded successfully on GPU!")
                     self.is_loaded = True
                     return True
                 except Exception as e:
-                    logger.error(f"❌ SANA load error: {e}", exc_info=True)
+                    logger.error(f"❌ SANA-Video 2B load error: {e}", exc_info=True)
 
             # ── 3. COGVIDEOX-2B ──
             if "2b" in req_engine:
@@ -297,64 +289,22 @@ class LightX2VEngine(BaseVideoEngine):
                     generated = True
                 
                 elif "SANA" in _ACTIVE_MODEL_NAME:
-                    # SANA generates ultra-HD keyframe images → we create multiple
-                    # keyframes with scene progression and combine into smooth video
-                    import PIL.Image
-                    keyframe_dir = out_dir / f"sana_keyframes_{actual_seed}"
-                    keyframe_dir.mkdir(parents=True, exist_ok=True)
-
-                    # Generate 16 keyframes with subtle prompt variations for motion
-                    num_keyframes = 16
-                    scene_phases = [
-                        f"{clean_english_prompt}, establishing wide shot, dramatic lighting",
-                        f"{clean_english_prompt}, slow push-in, cinematic depth of field",
-                        f"{clean_english_prompt}, medium close-up, dynamic angle shift",
-                        f"{clean_english_prompt}, dramatic close-up, intense expression, lens flare",
-                    ]
-                    logger.info(f"🎨 Generating {num_keyframes} SANA Ultra-HD keyframes...")
-
-                    all_keyframe_paths = []
-                    for i in range(num_keyframes):
-                        phase_prompt = scene_phases[i % len(scene_phases)]
-                        frame_gen = torch.Generator("cuda").manual_seed(actual_seed + i)
-                        img_output = active_pipe(
-                            prompt=phase_prompt,
-                            negative_prompt=neg_prompt,
-                            num_inference_steps=40,
-                            guidance_scale=5.0,
-                            height=1024,
-                            width=1024,
-                            generator=frame_gen,
-                        )
-                        img = img_output.images[0]
-                        kf_path = keyframe_dir / f"keyframe_{i:04d}.png"
-                        img.save(str(kf_path))
-                        all_keyframe_paths.append(str(kf_path))
-                        logger.info(f"   Keyframe {i+1}/{num_keyframes} generated")
-
-                    # Combine keyframes into video with crossfade interpolation
-                    ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
-                    kf_video_cmd = [
-                        ffmpeg_bin, "-y",
-                        "-framerate", "2",
-                        "-i", str(keyframe_dir / "keyframe_%04d.png"),
-                        "-vf", "minterpolate=fps=24:mi_mode=blend,scale=1280:720:flags=lanczos",
-                        "-c:v", "libx264", "-crf", "16", "-preset", "slow",
-                        "-pix_fmt", "yuv420p", "-t", str(target_duration),
-                        str(raw_temp_video)
-                    ]
-                    kf_result = subprocess.run(kf_video_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
-                    if kf_result.returncode == 0:
-                        generated = True
-                        logger.info(f"✅ SANA keyframe video synthesized ({num_keyframes} frames → {target_duration}s)")
-                    else:
-                        logger.warning(f"FFmpeg keyframe combine notice: {kf_result.stderr[:300]}")
-
-                    # Cleanup keyframes
-                    try:
-                        shutil.rmtree(str(keyframe_dir))
-                    except Exception:
-                        pass
+                    # SANA-Video 2B generates 81 native video frames at 720p
+                    logger.info("👑 Running SANA-Video 2B inference (81 frames, 720p)...")
+                    video_output = active_pipe(
+                        prompt=clean_english_prompt,
+                        negative_prompt=neg_prompt,
+                        height=704,
+                        width=1280,
+                        num_frames=81,
+                        num_inference_steps=50,
+                        guidance_scale=6.0,
+                        generator=generator,
+                    )
+                    frames = video_output.frames[0]
+                    from diffusers.utils import export_to_video
+                    export_to_video(frames, str(raw_temp_video), fps=24)
+                    generated = True
 
                 elif "ModelScope" in _ACTIVE_MODEL_NAME:
                     video_output = active_pipe(
