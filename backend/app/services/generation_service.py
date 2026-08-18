@@ -83,6 +83,7 @@ async def _generation_task(job_id: str, payload: dict):
         out_path = str(out_dir / f"{job_id}.mp4")
 
         # ── ACTUAL GPU INFERENCE ──────────────────────────────────────
+        req_engine_name = payload.get("engine") or settings.ENGINE
         result = await engine.generate_image_to_video(
             prompt=prompt,
             duration_seconds=duration,
@@ -90,6 +91,7 @@ async def _generation_task(job_id: str, payload: dict):
             seed=seed,
             steps=steps,
             output_path=out_path,
+            engine=req_engine_name,
         )
 
         await _update_job(job_id, JobState.GENERATING, 78.0, f"Diffusion complete. Decoding latents to video frames...")

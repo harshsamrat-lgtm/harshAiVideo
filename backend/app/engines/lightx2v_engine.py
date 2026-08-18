@@ -136,33 +136,37 @@ class LightX2VEngine(BaseVideoEngine):
                 except Exception as e:
                     logger.error(f"❌ CogVideoX-2B load error: {e}", exc_info=True)
 
-            # ── 4. FALLBACK: ModelScope 1.7B ──
-            try:
-                from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
-                logger.info("🚀 Loading ModelScope text-to-video-ms-1.7b (fallback)...")
-                pipe = DiffusionPipeline.from_pretrained(
-                    "damo-vilab/text-to-video-ms-1.7b",
-                    torch_dtype=torch.float16,
-                    variant="fp16"
-                )
-                pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
-                pipe.enable_vae_slicing()
-                pipe = pipe.to("cuda")
+            # ── 4. FALLBACK / EXPLICIT MODELSCOPE ──
+            if "modelscope" in req_engine or not _LOADED_PIPES:
+                try:
+                    from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
+                    logger.info("🚀 Loading ModelScope text-to-video-ms-1.7b...")
+                    pipe = DiffusionPipeline.from_pretrained(
+                        "damo-vilab/text-to-video-ms-1.7b",
+                        torch_dtype=torch.float16,
+                        variant="fp16"
+                    )
+                    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+                    pipe.enable_vae_slicing()
+                    pipe = pipe.to("cuda")
 
-                _LOADED_PIPES["ModelScope-1.7B"] = pipe
-                _ACTIVE_MODEL_NAME = "ModelScope-1.7B"
-                self.name = "ModelScope-1.7B"
-                logger.info("✅ ModelScope 1.7B loaded on GPU.")
-                self.is_loaded = True
-                return True
-            except Exception as e:
-                logger.error(f"ModelScope load error: {e}", exc_info=True)
+                    _LOADED_PIPES["ModelScope-1.7B"] = pipe
+                    _ACTIVE_MODEL_NAME = "ModelScope-1.7B"
+                    self.name = "ModelScope-1.7B"
+                    logger.info("✅ ModelScope 1.7B loaded on GPU.")
+                    self.is_loaded = True
+                    return True
+                except Exception as e:
+                    logger.error(f"ModelScope load error: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Engine initialization error: {e}", exc_info=True)
 
-        _ACTIVE_MODEL_NAME = "none"
-        self.is_loaded = True
+        if not _LOADED_PIPES:
+            _ACTIVE_MODEL_NAME = "none"
+            self.is_loaded = False
+            raise RuntimeError(f"Could not load requested AI video model [{req_engine}]. Check PyTorch GPU drivers and network.")
+
         return True
 
     async def unload_model(self) -> bool:
