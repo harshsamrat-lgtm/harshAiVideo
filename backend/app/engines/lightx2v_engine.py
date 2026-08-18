@@ -103,16 +103,12 @@ class LightX2VEngine(BaseVideoEngine):
                 _COGVIDEO_5B_PIPE = CogVideoXPipeline.from_pretrained(
                     "THUDM/CogVideoX-5b",
                     torch_dtype=torch.float16
-                )
-                if hasattr(_COGVIDEO_5B_PIPE, "enable_model_cpu_offload"):
-                    try: _COGVIDEO_5B_PIPE.enable_model_cpu_offload()
-                    except Exception: pass
+                ).to("cuda")
                 if hasattr(_COGVIDEO_5B_PIPE, "vae"):
                     if hasattr(_COGVIDEO_5B_PIPE.vae, "enable_tiling"):
                         _COGVIDEO_5B_PIPE.vae.enable_tiling()
                     if hasattr(_COGVIDEO_5B_PIPE.vae, "enable_slicing"):
                         _COGVIDEO_5B_PIPE.vae.enable_slicing()
-                _COGVIDEO_5B_PIPE = _COGVIDEO_5B_PIPE.to("cuda")
                 _ACTIVE_MODEL_NAME = "CogVideoX-5B"
                 self.name = "CogVideoX-5B-HD"
                 logger.info("✅ CogVideoX-5B loaded successfully on GPU!")
@@ -129,10 +125,12 @@ class LightX2VEngine(BaseVideoEngine):
                     _COGVIDEO_2B_PIPE = CogVideoXPipeline.from_pretrained(
                         "THUDM/CogVideoX-2b",
                         torch_dtype=torch.float16
-                    )
-                    _COGVIDEO_2B_PIPE.vae.enable_tiling()
-                    _COGVIDEO_2B_PIPE.vae.enable_slicing()
-                    _COGVIDEO_2B_PIPE = _COGVIDEO_2B_PIPE.to("cuda")
+                    ).to("cuda")
+                    if hasattr(_COGVIDEO_2B_PIPE, "vae"):
+                        if hasattr(_COGVIDEO_2B_PIPE.vae, "enable_tiling"):
+                            _COGVIDEO_2B_PIPE.vae.enable_tiling()
+                        if hasattr(_COGVIDEO_2B_PIPE.vae, "enable_slicing"):
+                            _COGVIDEO_2B_PIPE.vae.enable_slicing()
                     _ACTIVE_MODEL_NAME = "CogVideoX-2B"
                     self.name = "CogVideoX-2B"
                     logger.info("✅ CogVideoX-2B loaded successfully on GPU!")
