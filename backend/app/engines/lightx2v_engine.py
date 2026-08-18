@@ -96,25 +96,30 @@ class LightX2VEngine(BaseVideoEngine):
                 except Exception as e:
                     logger.warning(f"SANA-Video-2.0 14B load notice ({e}). Trying CogVideoX-5B...")
 
-            # ── TRY 1: CogVideoX-5B (Best Quality, needs ~14GB VRAM) ──
-            if vram >= 14.0:
-                try:
-                    from diffusers import CogVideoXPipeline
-                    logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
-                    _COGVIDEO_5B_PIPE = CogVideoXPipeline.from_pretrained(
-                        "THUDM/CogVideoX-5b",
-                        torch_dtype=torch.bfloat16
-                    )
-                    _COGVIDEO_5B_PIPE.vae.enable_tiling()
-                    _COGVIDEO_5B_PIPE.vae.enable_slicing()
-                    _COGVIDEO_5B_PIPE = _COGVIDEO_5B_PIPE.to("cuda")
-                    _ACTIVE_MODEL_NAME = "CogVideoX-5B"
-                    self.name = "CogVideoX-5B-HD"
-                    logger.info("✅ CogVideoX-5B loaded successfully on GPU!")
-                    self.is_loaded = True
-                    return True
-                except Exception as e:
-                    logger.warning(f"CogVideoX-5B load notice ({e}). Trying CogVideoX-2B...")
+            # ── TRY 1: CogVideoX-5B (Primary 5 Billion Parameter Model) ──
+            try:
+                from diffusers import CogVideoXPipeline
+                logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
+                _COGVIDEO_5B_PIPE = CogVideoXPipeline.from_pretrained(
+                    "THUDM/CogVideoX-5b",
+                    torch_dtype=torch.float16
+                )
+                if hasattr(_COGVIDEO_5B_PIPE, "enable_model_cpu_offload"):
+                    try: _COGVIDEO_5B_PIPE.enable_model_cpu_offload()
+                    except Exception: pass
+                if hasattr(_COGVIDEO_5B_PIPE, "vae"):
+                    if hasattr(_COGVIDEO_5B_PIPE.vae, "enable_tiling"):
+                        _COGVIDEO_5B_PIPE.vae.enable_tiling()
+                    if hasattr(_COGVIDEO_5B_PIPE.vae, "enable_slicing"):
+                        _COGVIDEO_5B_PIPE.vae.enable_slicing()
+                _COGVIDEO_5B_PIPE = _COGVIDEO_5B_PIPE.to("cuda")
+                _ACTIVE_MODEL_NAME = "CogVideoX-5B"
+                self.name = "CogVideoX-5B-HD"
+                logger.info("✅ CogVideoX-5B loaded successfully on GPU!")
+                self.is_loaded = True
+                return True
+            except Exception as e:
+                logger.warning(f"CogVideoX-5B load notice ({e}). Trying CogVideoX-2B...")
 
             # ── TRY 2: CogVideoX-2B (Good Quality, needs ~8GB VRAM) ──
             if vram >= 8.0:
