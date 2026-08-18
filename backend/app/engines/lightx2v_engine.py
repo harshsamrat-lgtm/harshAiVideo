@@ -316,7 +316,7 @@ class LightX2VEngine(BaseVideoEngine):
                             prompt=clean_english_prompt,
                             height=704,
                             width=1280,
-                            frames=33,
+                            frames=81,
                             num_inference_steps=50,
                             guidance_scale=6.0,
                             generator=generator,
