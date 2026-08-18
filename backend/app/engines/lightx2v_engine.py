@@ -63,9 +63,16 @@ class LightX2VEngine(BaseVideoEngine):
             gpu_name = torch.cuda.get_device_name(0)
             logger.info(f"🖥️ Detected GPU: {gpu_name} ({vram:.1f} GB VRAM) | Target Engine: {req_engine}")
 
-            # Clear VRAM cache when switching models
+            # ── UNLOAD previous model from VRAM before loading new one ──
+            if _LOADED_PIPES:
+                logger.info(f"🗑️ Unloading previous model [{_ACTIVE_MODEL_NAME}] from VRAM...")
+                for key in list(_LOADED_PIPES.keys()):
+                    del _LOADED_PIPES[key]
+                _LOADED_PIPES.clear()
+                _ACTIVE_MODEL_NAME = None
             gc.collect()
             torch.cuda.empty_cache()
+            logger.info(f"✅ GPU VRAM cleared. Free: {torch.cuda.mem_get_info(0)[0] / (1024**3):.1f} GB")
 
             # ── 1. COGVIDEOX-5B (Primary requested model) ──
             if "5b" in req_engine or "cogvideox" in req_engine or "lightx2v" in req_engine:
@@ -289,22 +296,36 @@ class LightX2VEngine(BaseVideoEngine):
                     generated = True
                 
                 elif "SANA" in _ACTIVE_MODEL_NAME:
-                    # SANA-Video 2B generates 81 native video frames at 720p
-                    logger.info("👑 Running SANA-Video 2B inference (81 frames, 720p)...")
-                    video_output = active_pipe(
-                        prompt=clean_english_prompt,
-                        negative_prompt=neg_prompt,
-                        height=704,
-                        width=1280,
-                        num_frames=81,
-                        num_inference_steps=50,
-                        guidance_scale=6.0,
-                        generator=generator,
-                    )
+                    # SANA-Video 2B generates native video frames at 720p
+                    logger.info("👑 Running SANA-Video 2B inference (720p)...")
+                    try:
+                        # Try with num_frames first (diffusers standard)
+                        video_output = active_pipe(
+                            prompt=clean_english_prompt,
+                            height=704,
+                            width=1280,
+                            num_frames=33,
+                            num_inference_steps=50,
+                            guidance_scale=6.0,
+                            generator=generator,
+                        )
+                    except TypeError as te:
+                        logger.info(f"Retrying SANA with 'frames' param: {te}")
+                        # Some diffusers versions use 'frames' instead of 'num_frames'
+                        video_output = active_pipe(
+                            prompt=clean_english_prompt,
+                            height=704,
+                            width=1280,
+                            frames=33,
+                            num_inference_steps=50,
+                            guidance_scale=6.0,
+                            generator=generator,
+                        )
                     frames = video_output.frames[0]
                     from diffusers.utils import export_to_video
                     export_to_video(frames, str(raw_temp_video), fps=24)
                     generated = True
+                    logger.info("✅ SANA-Video 2B frames exported!")
 
                 elif "ModelScope" in _ACTIVE_MODEL_NAME:
                     video_output = active_pipe(
