@@ -1,8 +1,9 @@
 """
 Prompt Synthesizer & Dual-Track Visual/Voice-over Parser for Harsh AI Video Studio.
 Optimized for CogVideoX-5B and SANA-Video 2B text-to-video diffusion models.
-Separates compound prompts into clean visual scene directions and spoken Voice-over dialogue.
-Enforces photorealistic facial clarity, perfect 5-finger hand anatomy, and cinematic 8K coherence.
+Separates compound prompts and multi-character dialogue scripts into:
+  1. Clean visual scene directions with rock-solid facial and 5-finger hand anatomy.
+  2. Multi-turn Neural Voice-over dialogue tracks with authentic Child and Adult vocal modulation.
 """
 import re
 from typing import List, Optional, Dict, Any, Tuple
@@ -62,6 +63,8 @@ HINDI_DICTIONARY = {
     "गाय": "a sacred holy cow with gentle calm eyes in a green pasture",
 
     # Locations & Environment
+    "आँगन": "a beautiful traditional Indian sunlit courtyard with terracotta floor and flowering plants",
+    "आंगन": "a sunlit traditional Indian courtyard with terracotta tiles and green potted plants",
     "स्कूल": "a picturesque sunny school courtyard with green trees and sunlight",
     "कक्षा": "a bright sunny classroom with wooden benches",
     "मैदान": "a lush green open playground with soft warm sunlight",
@@ -91,44 +94,107 @@ HINDI_DICTIONARY = {
 }
 
 
-def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Optional[str]]:
+def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Any]:
     """
-    Separates user input into Visual Scene Prompt and Voice-over Dialogue.
-    Captures spoken dialogues cleanly for Neural Speech Synthesis.
+    Separates user input into Visual Scene Prompt and Multi-character Voice-over Dialogues.
+    Returns: (clean_visual_prompt, dialogue_data)
+      dialogue_data can be:
+        - List of dicts: [{'speaker': 'Kittu', 'text': '...', 'is_child': True, 'start': 0.0}, ...]
+        - String: single dialogue / narration
+        - None: no dialogue
     """
     if not raw_input:
         return ("a cinematic landscape at golden hour, photorealistic, 4K", None)
 
-    vo_patterns = [
-        r'(?:Voice-over|Voiceover|Voice over|वॉइस ओवर|डायलॉग|Dialogue|संवाद)\s*:\s*[""\']?(.*?)(?:[""\']?\s*$)',
-        r'[""]([\u0900-\u097F\s\.\,…!?\-।]+)[""]',
-        r'\'([\u0900-\u097F\s\.\,…!?\-।]+)\''
-    ]
+    # 1. Extract Hindi quotes from script / prompt
+    # Matches “...”, "...", ‘...’, '...' containing Devanagari Hindi characters
+    quote_matches = re.findall(r'[\"“\'‘]([\u0900-\u097F\s\.\,…!?\-।]+)[\"”\'’]', raw_input)
 
-    voiceover_text = None
+    is_child_scene = any(w in raw_input.lower() for w in ["बच्चे", "बच्चा", "बच्ची", "child", "children", "boy", "boys", "girl", "girls", "5-year-old", "kid", "kids", "किट्टू", "राघवेंद्र"])
+
+    dialogues: List[Dict[str, Any]] = []
+
+    if len(quote_matches) >= 2:
+        # Multiple character dialogue exchange
+        for i, q in enumerate(quote_matches[:2]):
+            speaker_name = "Character 1" if i == 0 else "Character 2"
+            if i == 0 and ("किट्टू" in raw_input or "kittu" in raw_input.lower()):
+                speaker_name = "Kittu"
+            elif i == 1 and ("राघवेंद्र" in raw_input or "raghavendra" in raw_input.lower()):
+                speaker_name = "Raghavendra"
+
+            dialogues.append({
+                "speaker": speaker_name,
+                "text": q.strip(),
+                "is_child": is_child_scene,
+                "turn": i
+            })
+    elif len(quote_matches) == 1:
+        dialogues.append({
+            "speaker": "Speaker",
+            "text": quote_matches[0].strip(),
+            "is_child": is_child_scene,
+            "turn": 0
+        })
+
+    # If no quotes found, try explicit dialogue patterns
+    if not dialogues:
+        vo_patterns = [
+            r'(?:Voice-over|Voiceover|Voice over|वॉइस ओवर|डायलॉग|Dialogue|संवाद)\s*:\s*[""\']?(.*?)(?:[""\']?\s*$)',
+        ]
+        for pat in vo_patterns:
+            m = re.search(pat, raw_input, re.IGNORECASE | re.DOTALL)
+            if m:
+                dialogues.append({
+                    "speaker": "Narrator",
+                    "text": m.group(1).strip().strip('""\'"'),
+                    "is_child": is_child_scene,
+                    "turn": 0
+                })
+                break
+
+    # If still no dialogue, and input is pure Hindi, use full input as narration
+    if not dialogues and re.search(r'[\u0900-\u097F]', raw_input):
+        clean_hindi = re.sub(r'[\#\*\_]+', ' ', raw_input).strip()
+        dialogues.append({
+            "speaker": "Narrator",
+            "text": clean_hindi,
+            "is_child": is_child_scene,
+            "turn": 0
+        })
+
+    # 2. Clean visual prompt (remove script headers, timecodes, quotes)
     clean_visual = raw_input
+    # Remove markdown headers like "# 8 सेकंड की वीडियो स्क्रिप्ट", "दृश्य:", "0-4 सेकंड"
+    clean_visual = re.sub(r'#.*?\n', ' ', clean_visual)
+    clean_visual = re.sub(r'\*\*.*?\*\*', ' ', clean_visual)
+    clean_visual = re.sub(r'\d+–\d+\s*सेकंड.*?:', ' ', clean_visual)
+    clean_visual = re.sub(r'दृश्य:.*?\n', ' ', clean_visual)
+    clean_visual = re.sub(r'वीडियो प्रॉम्प्ट:.*?', ' ', clean_visual)
 
-    for pat in vo_patterns:
-        match = re.search(pat, raw_input, re.IGNORECASE | re.DOTALL)
-        if match:
-            voiceover_text = match.group(1).strip().strip('""\'"')
-            clean_visual = re.sub(pat, '', clean_visual, flags=re.IGNORECASE | re.DOTALL).strip()
-            break
+    # Remove quotes from visual prompt so diffusion gets pure scene description
+    for q in quote_matches:
+        clean_visual = clean_visual.replace(q, ' ')
 
-    # If no explicit voiceover tag is used, but the input is in Hindi, use the full Hindi sentence as voiceover
-    if not voiceover_text and re.search(r'[\u0900-\u097F]', raw_input):
-        voiceover_text = raw_input.strip()
+    # If prompt contains English visual text, extract English description
+    english_blocks = re.findall(r'([A-Za-z0-9\s,\.\-\'\"]{25,})', raw_input)
+    if english_blocks:
+        # Choose longest English visual description
+        longest_english = max(english_blocks, key=len).strip()
+        # Clean quotes inside English block
+        longest_english = re.sub(r'[\"“\'‘][\u0900-\u097F\s\.\,…!?\-।]+[\"”\'’]', '', longest_english)
+        clean_visual = longest_english
 
-    return (clean_visual.strip(), voiceover_text)
+    return (clean_visual.strip(), dialogues if dialogues else None)
 
 
 def translate_and_enhance_hindi_prompt(text: str) -> str:
     """
     Translates Hindi/Devanagari to rich, anatomically stable English visual descriptions.
-    Inforces rock-solid facial proportions, 5-finger hands, and cinematic coherence.
+    Enforces rock-solid facial proportions, 5-finger hands, and cinematic coherence.
     """
     if not text:
-        return "A cinematic medium shot of two joyful Indian children conversing in a sunny garden, sharp facial features, anatomically correct hands, photorealistic 8K quality."
+        return "A cinematic medium shot of two joyful 5-year-old Indian boys conversing in a sunny courtyard, sharp facial features, anatomically correct hands, photorealistic 8K quality."
 
     enhanced = text.strip()
 
@@ -137,7 +203,6 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
         translated_parts = []
         remaining = enhanced
 
-        # Multi-word matching first
         for hindi_word, eng_desc in sorted(HINDI_DICTIONARY.items(), key=lambda x: -len(x[0])):
             if hindi_word in remaining:
                 translated_parts.append(eng_desc)
@@ -146,25 +211,29 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
         if translated_parts:
             enhanced = ". ".join(translated_parts)
         else:
-            # Fallback if Hindi words are not in dictionary
             enhanced = f"A beautiful cinematic scene of {enhanced}, photorealistic, sharp focus"
 
     p_lower = enhanced.lower()
-    has_people = any(c in p_lower for c in ["child", "children", "boy", "girl", "people", "person", "man", "woman", "warrior", "student", "friend"])
+    has_people = any(c in p_lower for c in ["child", "children", "boy", "boys", "girl", "girls", "people", "person", "man", "woman", "warrior", "student", "friend", "kittu", "raghavendra"])
 
     # Enforce anatomical stability for faces and hands
     if has_people:
         anatomical_stabilizer = (
-            "Cinematic medium portrait shot, perfectly proportioned symmetrical facial features, "
-            "clear expressive eyes, natural subtle smile, steady facial structure, "
+            "Cinematic medium portrait shot, perfectly proportioned symmetrical cute facial features, "
+            "clear bright expressive eyes, natural subtle friendly smile, steady coherent facial structure, "
             "anatomically correct hands with exactly five distinct fingers, gentle natural posture, "
-            "85mm prime lens photography, soft natural daylight illumination, 8K masterpiece"
+            "85mm prime lens photography, soft natural daylight illumination, 8K resolution masterpiece"
         )
         enhanced = f"{enhanced}. {anatomical_stabilizer}"
     else:
         enhanced = f"{enhanced}. Cinematic masterpiece, photorealistic 8K resolution, sharp focus, 35mm film grain, masterpiece lighting."
 
-    return enhanced
+    # Remove conflicting prompt tags like "no background music", "no subtitles" from visual prompt
+    enhanced = re.sub(r'no\s+background\s+music', '', enhanced, flags=re.IGNORECASE)
+    enhanced = re.sub(r'no\s+subtitles', '', enhanced, flags=re.IGNORECASE)
+    enhanced = re.sub(r'no\s+text', '', enhanced, flags=re.IGNORECASE)
+
+    return enhanced.strip()
 
 
 class PromptService:
@@ -176,7 +245,7 @@ class PromptService:
         camera_motion: str = "cinematic tracking",
         lens_style: Optional[str] = None
     ) -> Dict[str, Any]:
-        visual_raw, voiceover = parse_prompt_and_voiceover(action_prompt)
+        visual_raw, dialogues = parse_prompt_and_voiceover(action_prompt)
         enhanced_action = translate_and_enhance_hindi_prompt(visual_raw)
 
         negative_segments: List[str] = [
@@ -198,7 +267,7 @@ class PromptService:
         return {
             "prompt": ". ".join(prompt_parts),
             "negative_prompt": ", ".join(list(dict.fromkeys(negative_segments))),
-            "voiceover_text": voiceover
+            "voiceover_text": dialogues
         }
 
 
