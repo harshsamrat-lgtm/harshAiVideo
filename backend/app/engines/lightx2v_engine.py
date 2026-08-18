@@ -304,7 +304,7 @@ class LightX2VEngine(BaseVideoEngine):
                             prompt=clean_english_prompt,
                             height=704,
                             width=1280,
-                            num_frames=33,
+                            num_frames=81,
                             num_inference_steps=50,
                             guidance_scale=6.0,
                             generator=generator,
@@ -367,12 +367,19 @@ class LightX2VEngine(BaseVideoEngine):
         target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
-        raw_fps = 16 if "CogVideo" in _ACTIVE_MODEL_NAME or "SANA" in _ACTIVE_MODEL_NAME else 12
-        raw_duration = (49.0 / raw_fps) if "CogVideo" in _ACTIVE_MODEL_NAME or "SANA" in _ACTIVE_MODEL_NAME else (32.0 / raw_fps)
+        if "SANA" in _ACTIVE_MODEL_NAME:
+            raw_fps = 24
+            raw_duration = 81.0 / 24.0  # SANA: 81 frames at 24fps = 3.375s
+        elif "CogVideo" in _ACTIVE_MODEL_NAME:
+            raw_fps = 16
+            raw_duration = 49.0 / 16.0  # CogVideo: 49 frames at 16fps = 3.0625s
+        else:
+            raw_fps = 12
+            raw_duration = 32.0 / 12.0  # ModelScope: 32 frames at 12fps = 2.67s
         time_stretch = target_duration / raw_duration
 
         vf_filter = (
-            f"setpts=({target_duration}/3.5)*PTS,"
+            f"setpts={time_stretch}*PTS,"
             f"tblend=all_mode=average,"
             f"fps=24,"
             f"scale=w={target_w}:h={target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
