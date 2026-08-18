@@ -317,15 +317,26 @@ class LightX2VEngine(BaseVideoEngine):
                 logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (Duration: {target_duration}s, Stable Guidance: 6.0)...")
                 
                 if "CogVideo" in _ACTIVE_MODEL_NAME:
-                    video_output = active_pipe(
-                        prompt=clean_english_prompt,
-                        negative_prompt=neg_prompt,
-                        num_videos_per_prompt=1,
-                        num_inference_steps=50,
-                        guidance_scale=6.0,
-                        num_frames=49,
-                        generator=generator,
-                    )
+                    try:
+                        video_output = active_pipe(
+                            prompt=clean_english_prompt,
+                            negative_prompt=neg_prompt,
+                            num_videos_per_prompt=1,
+                            num_inference_steps=50,
+                            guidance_scale=6.0,
+                            num_frames=49,
+                            generator=generator,
+                        )
+                    except TypeError as te:
+                        logger.warning(f"Retrying CogVideo without negative_prompt: {te}")
+                        video_output = active_pipe(
+                            prompt=clean_english_prompt,
+                            num_videos_per_prompt=1,
+                            num_inference_steps=50,
+                            guidance_scale=6.0,
+                            num_frames=49,
+                            generator=generator,
+                        )
                     frames = video_output.frames[0]
                     # Export raw video at exact fps to match target_duration naturally (49 frames / 8.0s = 6.125 fps)
                     export_fps = max(1.0, 49.0 / target_duration)
