@@ -550,6 +550,41 @@
             <textarea id="g-neg" rows="2">blurry, low quality, distorted face, extra limbs, jitter, flicker, watermark, text</textarea>
           </div>
 
+          <!-- REFERENCE IMAGE UPLOAD (CHARACTER / LOCATION / STARTING FRAME) -->
+          <div class="form-group" style="background: rgba(255,102,0,0.06); border: 1px dashed var(--bhagwa-primary); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
+            <label style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: var(--gold-bright);">
+              <span>📷 संदर्भ चित्र जोड़ें (Reference Image / Image-to-Video)</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 400;">वैकल्पिक (Optional)</span>
+            </label>
+            <p style="font-size: 0.76rem; color: var(--text-subtle); margin-bottom: 0.75rem;">
+              कलाकार (Actor/Face), लोकेशन (Background) या शुरुआती फोटो अपलोड करें जिसे AI वीडियो में बदलेगा।
+            </p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div>
+                <label style="font-size: 0.74rem;">चित्र का प्रकार (Reference Type)</label>
+                <select id="g-ref-type" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                  <option value="character">👤 कलाकार / कैरेक्टर (Actor Face)</option>
+                  <option value="location">🏞️ लोकेशन / बैकग्राउंड (Scene/Place)</option>
+                  <option value="start_frame">🎬 शुरुआती फ्रेम (Animate This Photo)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 0.74rem;">फोटो चुनें (Upload Photo)</label>
+                <input type="file" id="g-ref-file" accept="image/*" onchange="handleReferenceImageUpload(event)" style="padding: 0.35rem; font-size: 0.78rem;">
+              </div>
+            </div>
+
+            <div id="g-ref-preview-box" style="display: none; align-items: center; gap: 1rem; background: rgba(0,0,0,0.3); padding: 0.6rem; border-radius: 8px;">
+              <img id="g-ref-preview-img" src="" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bhagwa-primary);">
+              <div style="flex: 1;">
+                <div id="g-ref-preview-name" style="font-size: 0.8rem; font-weight: 600; color: var(--gold-bright);">चित्र अपलोड हुआ</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">यह फोटो वीडियो जेनरेशन के लिए सक्रिय है</div>
+              </div>
+              <button class="btn btn-ghost" type="button" onclick="clearReferenceImage()" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: #ff5555;">❌ हटाएं</button>
+            </div>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div class="form-group">
               <label>क्लिप अवधि (4 - 12 सेकंड)</label>
@@ -794,6 +829,37 @@
 
     // ─── REAL GENERATION & FAST POLLING ────────────────────────
     let currentPolling = null;
+    let uploadedReferenceImagePath = null;
+
+    async function handleReferenceImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/generate/upload-reference', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+        uploadedReferenceImagePath = data.file_path;
+        document.getElementById('g-ref-preview-img').src = data.file_url;
+        document.getElementById('g-ref-preview-name').innerText = file.name;
+        document.getElementById('g-ref-preview-box').style.display = 'flex';
+      } catch (err) {
+        alert('चित्र अपलोड करने में विफल: ' + err.message);
+      }
+    }
+
+    function clearReferenceImage() {
+      uploadedReferenceImagePath = null;
+      document.getElementById('g-ref-file').value = '';
+      document.getElementById('g-ref-preview-box').style.display = 'none';
+    }
 
     async function startGeneration() {
       const prompt = document.getElementById('g-prompt').value.trim();
@@ -804,6 +870,7 @@
 
       const payload = {
         prompt: prompt,
+        reference_image_path: uploadedReferenceImagePath,
         negative_prompt: document.getElementById('g-neg').value,
         duration: parseFloat(document.getElementById('g-dur').value),
         resolution: document.getElementById('g-res').value,

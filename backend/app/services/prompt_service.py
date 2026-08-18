@@ -89,15 +89,35 @@ HINDI_DICTIONARY = {
     "कक्षा": "a bright sunny classroom with wooden benches",
     "मैदान": "a lush green open playground with soft warm sunlight",
     "बगीचा": "a beautiful blooming garden with colorful flowers and green pathways",
-    "पार्क": "a scenic public park with lush green grass and shady trees",
-    "जंगल": "a dense scenic forest with towering trees and dappled sunbeams",
-    "पहाड़": "towering snow-capped Himalayan mountain peaks under clear blue sky",
-    "नदी": "a serene winding river with crystal clear flowing water and golden reflections",
-    "समुद्र": "dramatic ocean waves crashing gently against the golden sandy shore",
-    "गांव": "a peaceful traditional Indian village with rustic cottages and flowering trees",
-    "महल": "a magnificent ancient stone palace with carved arches and golden domes",
-    "शहर": "a vibrant modern city street with clean architecture and warm daylight",
-    "घर": "a cozy traditional home with warm inviting atmosphere",
+
+    # Science, Space & Technology
+    "वैज्ञानिक": "a brilliant visionary scientist in a sleek high-tech research laboratory with glowing futuristic holographic data displays and advanced scientific instruments",
+    "विज्ञान": "futuristic scientific innovation with glowing data interfaces and advanced technology",
+    "प्रयोगशाला": "a state-of-the-art futuristic research laboratory with glowing blue ambient lighting and precision instruments",
+    "अंतरिक्ष": "the deep cosmic expanse with glowing spiral galaxies, colorful nebulas, and brilliant distant stars",
+    "रॉकेट": "a powerful aerospace rocket blasting off towards space with glowing fiery thrust and dramatic smoke plumes",
+    "कंप्यूटर": "a sleek modern computer workstation with high-resolution monitors and clean ambient lighting",
+    "तकनीक": "cutting-edge technology with glowing digital circuits and futuristic interface",
+    "रोबोट": "a sleek advanced humanoid AI robot with friendly expressive glowing optical sensors",
+
+    # Professions, Daily Life & Emotions
+    "डॉक्टर": "a compassionate skilled doctor in a clean white coat examining in a modern clinic with warm friendly smile",
+    "इंजीनियर": "a smart dedicated engineer in safety helmet reviewing blueprints at a modern infrastructure project",
+    "शिक्षक": "an inspiring kind teacher explaining concepts with enthusiasm to attentive students",
+    "गुरु": "a wise revered spiritual teacher with serene gentle expression in a traditional serene setting",
+    "सैनिक": "a brave disciplined soldier standing vigilant in uniform against a rugged mountain landscape",
+    "खुश": "radiant genuine joy with bright smiling face, clear expressive eyes, and lively cheerful demeanor",
+    "उत्साह": "dynamic inspiring enthusiasm with energetic posture and bright confident expression",
+    "प्रेम": "warm gentle affectionate expression with tender soft cinematic lighting",
+    "शांति": "profound peaceful serenity with calm relaxing posture and gentle ambient sunlight",
+
+    # Indian Culture, Festivals & Heritage
+    "दीपावली": "a magical Diwali festival evening with hundreds of glowing terracotta oil lamps (diyas) casting warm golden light",
+    "दिवाली": "a radiant Diwali celebration with glowing diyas, marigold garlands, and festive golden illuminations",
+    "होली": "a vibrant joyful Holi celebration with colorful natural organic gulal powder bursting in the bright sunny air",
+    "मंदिर": "an ancient magnificent stone temple with intricately carved spires, glowing brass oil lamps, and divine serene atmosphere",
+    "पूजा": "a sacred traditional prayer ceremony with fragrant incense smoke, fresh marigold flowers, and glowing Aarti lamps",
+    "स्वतंत्रता": "proud Indian national celebration with the tricolor flag waving majestically against a crystal clear blue sky",
 
     # Nature & Sky
     "सुबह": "a glorious golden morning sunrise casting warm rays and pristine daylight",

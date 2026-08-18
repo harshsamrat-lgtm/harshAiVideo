@@ -238,8 +238,21 @@ class LightX2VEngine(BaseVideoEngine):
         visual_raw, voiceover_dialogue = parse_prompt_and_voiceover(prompt)
         clean_english_prompt = translate_and_enhance_hindi_prompt(visual_raw)
 
+        # ── 1.1 LOAD OPTIONAL REFERENCE IMAGE (CHARACTER / LOCATION / STARTING FRAME) ──
+        ref_image = None
+        if reference_image_path and Path(reference_image_path).exists():
+            try:
+                from PIL import Image
+                ref_image = Image.open(reference_image_path).convert("RGB")
+                ref_image = ref_image.resize((1280, 720), Image.Resampling.LANCZOS)
+                logger.info(f"🖼️ Reference image loaded for video synthesis: {reference_image_path} (1280x720)")
+            except Exception as ie:
+                logger.warning(f"Reference image load notice ({ie}), continuing with text prompt.")
+
         logger.info(f"🎬 Active GPU Model: {_ACTIVE_MODEL_NAME}")
         logger.info(f"🎬 Enriched Prompt: '{clean_english_prompt[:100]}...' (Duration: {target_duration}s, Steps: 65)")
+        if ref_image is not None:
+            logger.info("🎬 Mode: IMAGE-TO-VIDEO (Character/Location reference conditioning active)")
         if voiceover_dialogue:
             logger.info(f"🎙️ Hindi Voice-over: '{voiceover_dialogue}'")
 
@@ -301,6 +314,7 @@ class LightX2VEngine(BaseVideoEngine):
 
         # ── 3. GENERATE HIGH-STEPS NEURAL VIDEO ON GPU WITH ACTIVE PIPELINE ──
         generated = False
+        last_error = ""
 
         try:
             import torch
@@ -308,6 +322,7 @@ class LightX2VEngine(BaseVideoEngine):
             if not torch.cuda.is_available():
                 raise RuntimeError("No CUDA GPU available")
 
+            torch.cuda.empty_cache()
             generator = torch.Generator("cuda").manual_seed(actual_seed)
 
             # Get active loaded pipeline
@@ -318,30 +333,68 @@ class LightX2VEngine(BaseVideoEngine):
                 
                 if "CogVideo" in _ACTIVE_MODEL_NAME:
                     try:
-                        video_output = active_pipe(
-                            prompt=clean_english_prompt,
-                            negative_prompt=neg_prompt,
-                            num_videos_per_prompt=1,
-                            num_inference_steps=50,
-                            guidance_scale=6.0,
-                            num_frames=49,
-                            generator=generator,
-                        )
+                        if ref_image is not None:
+                            logger.info("🖼️ Animating video using reference image conditioning...")
+                            video_output = active_pipe(
+                                image=ref_image,
+                                prompt=clean_english_prompt,
+                                negative_prompt=neg_prompt,
+                                num_videos_per_prompt=1,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                num_frames=49,
+                                generator=generator,
+                            )
+                        else:
+                            video_output = active_pipe(
+                                prompt=clean_english_prompt,
+                                negative_prompt=neg_prompt,
+                                num_videos_per_prompt=1,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                num_frames=49,
+                                generator=generator,
+                            )
                     except TypeError as te:
-                        logger.warning(f"Retrying CogVideo without negative_prompt: {te}")
-                        video_output = active_pipe(
-                            prompt=clean_english_prompt,
-                            num_videos_per_prompt=1,
-                            num_inference_steps=50,
-                            guidance_scale=6.0,
-                            num_frames=49,
-                            generator=generator,
-                        )
+                        logger.warning(f"Retrying CogVideo without optional params: {te}")
+                        if ref_image is not None:
+                            try:
+                                video_output = active_pipe(
+                                    image=ref_image,
+                                    prompt=clean_english_prompt,
+                                    num_videos_per_prompt=1,
+                                    num_inference_steps=50,
+                                    guidance_scale=6.0,
+                                    num_frames=49,
+                                    generator=generator,
+                                )
+                            except TypeError:
+                                video_output = active_pipe(
+                                    prompt=clean_english_prompt,
+                                    num_videos_per_prompt=1,
+                                    num_inference_steps=50,
+                                    guidance_scale=6.0,
+                                    num_frames=49,
+                                    generator=generator,
+                                )
+                        else:
+                            video_output = active_pipe(
+                                prompt=clean_english_prompt,
+                                num_videos_per_prompt=1,
+                                num_inference_steps=50,
+                                guidance_scale=6.0,
+                                num_frames=49,
+                                generator=generator,
+                            )
                     frames = video_output.frames[0]
-                    # Export raw video at exact fps to match target_duration naturally (49 frames / 8.0s = 6.125 fps)
-                    export_fps = max(1.0, 49.0 / target_duration)
-                    from diffusers.utils import export_to_video
-                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
+                    export_fps = max(1, int(round(49.0 / target_duration)))
+                    try:
+                        from diffusers.utils import export_to_video
+                        export_to_video(frames, str(raw_temp_video), fps=export_fps)
+                    except Exception as ex:
+                        logger.warning(f"export_to_video fallback ({ex}), using imageio...")
+                        import imageio
+                        imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
                     generated = True
                 
                 elif "SANA" in _ACTIVE_MODEL_NAME:
@@ -368,10 +421,16 @@ class LightX2VEngine(BaseVideoEngine):
                             generator=generator,
                         )
                     frames = video_output.frames[0]
-                    export_fps = max(1.0, 81.0 / target_duration)
-                    from diffusers.utils import export_to_video
-                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
+                    export_fps = max(1, int(round(81.0 / target_duration)))
+                    try:
+                        from diffusers.utils import export_to_video
+                        export_to_video(frames, str(raw_temp_video), fps=export_fps)
+                    except Exception as ex:
+                        import imageio
+                        imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
                     generated = True
+                    logger.info("✅ SANA-Video 2B frames exported!")
+
                 elif "LTX" in _ACTIVE_MODEL_NAME:
                     logger.info("🚀 Running LTX-Video inference (24fps DiT, 97 frames)...")
                     video_output = active_pipe(
@@ -385,9 +444,13 @@ class LightX2VEngine(BaseVideoEngine):
                         generator=generator,
                     )
                     frames = video_output.frames[0]
-                    export_fps = max(1.0, len(frames) / target_duration)
-                    from diffusers.utils import export_to_video
-                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
+                    export_fps = max(1, int(round(len(frames) / target_duration)))
+                    try:
+                        from diffusers.utils import export_to_video
+                        export_to_video(frames, str(raw_temp_video), fps=export_fps)
+                    except Exception as ex:
+                        import imageio
+                        imageio.mimwrite(str(raw_temp_video), frames, fps=export_fps, quality=9)
                     generated = True
                     logger.info("✅ LTX-Video frames exported!")
 
@@ -401,7 +464,7 @@ class LightX2VEngine(BaseVideoEngine):
                         generator=generator,
                     )
                     frames = video_output.frames[0]
-                    export_fps = max(1.0, 32.0 / target_duration)
+                    export_fps = max(1, int(round(32.0 / target_duration)))
                     import imageio
                     imageio.mimwrite(
                         str(raw_temp_video), frames, fps=export_fps,
@@ -412,14 +475,15 @@ class LightX2VEngine(BaseVideoEngine):
                 logger.info(f"✅ {_ACTIVE_MODEL_NAME} generated frames successfully!")
 
         except Exception as e:
+            last_error = str(e)
             logger.error(f"❌ Video generation inference error: {e}", exc_info=True)
 
         if not generated or not raw_temp_video.exists():
-            logger.error("⚠️ Video generation failed to create frames.")
+            logger.error(f"⚠️ Video generation failed to create frames. Last error: {last_error}")
             return {
                 "engine": _ACTIVE_MODEL_NAME or self.name,
                 "status": "FAILED",
-                "error": "AI video diffusion could not generate frames. Check CUDA GPU VRAM and connection.",
+                "error": f"AI video diffusion error: {last_error}" if last_error else "AI video diffusion could not generate frames. Check CUDA GPU VRAM and connection.",
                 "output_path": "",
                 "seed": actual_seed,
                 "duration": target_duration,

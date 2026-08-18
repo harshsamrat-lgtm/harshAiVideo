@@ -84,8 +84,10 @@ async def _generation_task(job_id: str, payload: dict):
 
         # ── ACTUAL GPU INFERENCE ──────────────────────────────────────
         req_engine_name = payload.get("engine") or settings.ENGINE
+        ref_img_path = payload.get("reference_image_path")
         result = await engine.generate_image_to_video(
             prompt=prompt,
+            reference_image_path=ref_img_path,
             duration_seconds=duration,
             resolution=resolution,
             seed=seed,

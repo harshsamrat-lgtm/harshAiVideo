@@ -94,13 +94,16 @@ app.include_router(api_router)
 from fastapi.responses import FileResponse
 from fastapi import HTTPException as FastHTTPException
 
-@app.get("/api/outputs/{filename}", tags=["Outputs"])
-async def serve_output_video(filename: str):
-    """Serve a generated video file for browser playback and download."""
+@app.get("/api/outputs/{filename:path}", tags=["Outputs"])
+async def serve_output_file(filename: str):
+    """Serve a generated video or uploaded reference image."""
     output_path = Path(settings.OUTPUT_ROOT) / filename
     if not output_path.exists():
-        raise FastHTTPException(status_code=404, detail=f"Output video '{filename}' not found.")
-    return FileResponse(str(output_path), media_type="video/mp4", filename=filename)
+        raise FastHTTPException(status_code=404, detail=f"File '{filename}' not found.")
+    media_type = "video/mp4"
+    if output_path.suffix.lower() in [".png", ".jpg", ".jpeg", ".webp"]:
+        media_type = f"image/{output_path.suffix.lower().replace('.', '')}"
+    return FileResponse(str(output_path), media_type=media_type)
 
 
 @app.exception_handler(Exception)
