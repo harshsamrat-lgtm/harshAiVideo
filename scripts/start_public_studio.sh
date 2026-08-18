@@ -18,8 +18,13 @@ echo "============================================================"
 echo "Starting Harsh AI Video Studio on Port 8000..."
 echo "============================================================"
 
-# 1. Start Studio Backend on Port 8000 in background
-cd /workspace/harshAiVideo
+# 1. Install missing dependencies if needed
+echo "Verifying Python dependencies & FFmpeg..."
+which ffmpeg >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq ffmpeg)
+pip install -q -r backend/requirements.txt git+https://github.com/huggingface/diffusers || true
+
+# 2. Start Studio Backend on Port 8000 in background
+cd /workspace/harshAiVideo || cd /root/harshAiVideo || cd "$(pwd)"
 PYTHONPATH=backend python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > studio_backend.log 2>&1 &
 BACKEND_PID=$!
 
