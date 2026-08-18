@@ -109,13 +109,14 @@ async def _generation_task(job_id: str, payload: dict):
             raise RuntimeError(f"Output video file is missing or empty at {final_path}")
 
         gen_time = result.get("generation_time_seconds", 0.0)
+        active_model_used = result.get("engine", engine.name)
 
         await _update_job(
             job_id, JobState.COMPLETED, 100.0,
-            f"✅ Done! Generated {duration}s @ {resolution} in {gen_time:.1f}s → {Path(final_path).name}",
+            f"✅ [मॉडल: {active_model_used}] {duration}s @ {resolution} | टाइम: {gen_time:.1f}s → {Path(final_path).name}",
             result_url=final_path
         )
-        logger.info(f"[Task:{job_id}] ✅ Completed → {final_path}")
+        logger.info(f"[Task:{job_id}] ✅ Completed using [{active_model_used}] → {final_path}")
 
     except Exception as e:
         logger.error(f"[Task:{job_id}] ❌ Generation failed: {e}", exc_info=True)
