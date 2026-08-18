@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Harsh AI Video Studio - Self-Healing 1-Click Public Web Studio Launcher
+# Harsh AI Video Studio - Self-Healing Multi-Tunnel Launcher
+# Provides automatic failover across Cloudflare, Pinggy, and Localtunnel.
 # ==============================================================================
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
@@ -16,6 +17,7 @@ echo "============================================================"
 echo "🧹 Cleaning up existing processes on port 8000..."
 pkill -f "uvicorn" || true
 pkill -f "cloudflared" || true
+pkill -f "localtunnel" || true
 sleep 1
 
 # 2. Ensure python3 & pip3 are available
@@ -59,16 +61,49 @@ if [ "$READY" = false ]; then
     exit 1
 fi
 
-# 6. Download and start Cloudflare Tunnel
-if [ ! -f "${ROOT_DIR}/cloudflared" ]; then
-    echo "📥 Downloading Cloudflare Tunnel client..."
-    curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o "${ROOT_DIR}/cloudflared"
-    chmod +x "${ROOT_DIR}/cloudflared"
-fi
+# 6. Display Direct Public IP Info
+SERVER_IP=$(curl -s --max-time 3 ifconfig.me || echo "localhost")
+echo ""
+echo "🌐 Direct Server IP: http://${SERVER_IP}:8000"
+echo ""
 
+# 7. MULTI-TUNNEL STRATEGY (Cloudflare -> Pinggy -> LocalRun)
 echo "============================================================"
-echo "🎉 SUCCESS! YOUR PUBLIC HTTPS STUDIO LINK IS GENERATING BELOW:"
-echo "   (Open the .trycloudflare.com URL in your browser)"
+echo "🌐 Generating Public HTTPS Studio Link..."
 echo "============================================================"
 
-"${ROOT_DIR}/cloudflared" tunnel --url http://127.0.0.1:8000
+# Helper function: Try Cloudflare Tunnel
+try_cloudflare() {
+    if [ ! -f "${ROOT_DIR}/cloudflared" ]; then
+        echo "📥 Downloading Cloudflare Tunnel client..."
+        curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o "${ROOT_DIR}/cloudflared"
+        chmod +x "${ROOT_DIR}/cloudflared"
+    fi
+    echo "⚡ Launching Cloudflare Tunnel (https://*.trycloudflare.com)..."
+    "${ROOT_DIR}/cloudflared" tunnel --url http://127.0.0.1:8000
+}
+
+# Helper function: Try Pinggy SSH Tunnel (Zero install required, highly reliable)
+try_pinggy() {
+    echo ""
+    echo "⚠️ Cloudflare rate-limited. Seamlessly switching to Pinggy HTTPS Tunnel..."
+    echo "============================================================"
+    echo "🎉 YOUR PUBLIC HTTPS STUDIO LINK IS GENERATING BELOW:"
+    echo "============================================================"
+    ssh -p 443 -R0:localhost:8000 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 a.pinggy.io
+}
+
+# Helper function: Try LocalTunnel
+try_localtunnel() {
+    echo ""
+    echo "⚠️ Switching to LocalTunnel..."
+    npx localtunnel --port 8000
+}
+
+# Execute tunnel cascade
+try_cloudflare || try_pinggy || try_localtunnel || {
+    echo ""
+    echo "⚠️ Public tunnels are busy. You can access the studio directly via:"
+    echo "👉 http://${SERVER_IP}:8000"
+    wait ${BACKEND_PID}
+}
