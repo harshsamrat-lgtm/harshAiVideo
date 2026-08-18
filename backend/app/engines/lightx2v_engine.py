@@ -75,7 +75,7 @@ class LightX2VEngine(BaseVideoEngine):
             logger.info(f"✅ GPU VRAM cleared. Free: {torch.cuda.mem_get_info(0)[0] / (1024**3):.1f} GB")
 
             # ── 1. COGVIDEOX-5B (Primary requested model) ──
-            if "5b" in req_engine or "cogvideox" in req_engine or "lightx2v" in req_engine:
+            if "5b" in req_engine or "cogvideox-5b" in req_engine:
                 try:
                     from diffusers import CogVideoXPipeline
                     logger.info("🚀 Loading CogVideoX-5B (5 Billion parameter HD model)...")
@@ -97,23 +97,58 @@ class LightX2VEngine(BaseVideoEngine):
             # ── 2. SANA-VIDEO-2B 720p (NVIDIA Linear DiT Video Model) ──
             if "sana" in req_engine:
                 try:
-                    from diffusers import SanaVideoPipeline
-                    logger.info("👑 Loading SANA-Video 2B 720p (NVIDIA Linear DiT Video)...")
-                    pipe = SanaVideoPipeline.from_pretrained(
+                    try:
+                        from diffusers import SanaVideoPipeline
+                    except ImportError:
+                        logger.info("📦 SanaVideoPipeline not found in diffusers. Auto-upgrading diffusers from GitHub...")
+                        import subprocess, sys
+                        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "git+https://github.com/huggingface/diffusers", "timm", "accelerate"], check=False)
+                        from diffusers import SanaVideoPipeline
+
+                    logger.info("👑 Loading SANA-Video 2B (NVIDIA Linear DiT Video)...")
+                    for model_repo in [
                         "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
+                        "Efficient-Large-Model/SANA-Video_2B_480p_diffusers",
+                    ]:
+                        try:
+                            logger.info(f"   Attempting to load SANA from [{model_repo}]...")
+                            pipe = SanaVideoPipeline.from_pretrained(
+                                model_repo,
+                                torch_dtype=torch.bfloat16
+                            ).to("cuda")
+
+                            _LOADED_PIPES["SANA-Video-2B"] = pipe
+                            _ACTIVE_MODEL_NAME = "SANA-Video-2B"
+                            self.name = "SANA-Video-2B-720p"
+                            logger.info(f"✅ SANA-Video 2B loaded successfully from [{model_repo}]!")
+                            self.is_loaded = True
+                            return True
+                        except Exception as repo_err:
+                            logger.warning(f"   Notice loading {model_repo}: {repo_err}")
+
+                except Exception as e:
+                    logger.error(f"❌ SANA-Video load error: {e}", exc_info=True)
+
+            # ── 3. LTX-VIDEO (High Speed 24fps DiT Model) ──
+            if "ltx" in req_engine or "wan" in req_engine or "lightx2v" in req_engine:
+                try:
+                    from diffusers import LTXPipeline
+                    logger.info("🚀 Loading LTX-Video (24fps DiT Video Model)...")
+                    pipe = LTXPipeline.from_pretrained(
+                        "Lightricks/LTX-Video",
                         torch_dtype=torch.bfloat16
                     ).to("cuda")
 
-                    _LOADED_PIPES["SANA-Video-2B"] = pipe
-                    _ACTIVE_MODEL_NAME = "SANA-Video-2B"
-                    self.name = "SANA-Video-2B-720p"
-                    logger.info("✅ SANA-Video 2B 720p loaded successfully on GPU!")
+                    _LOADED_PIPES["LTX-Video"] = pipe
+                    _ACTIVE_MODEL_NAME = "LTX-Video"
+                    self.name = "LTX-Video-HD"
+                    logger.info("✅ LTX-Video loaded successfully on GPU!")
                     self.is_loaded = True
                     return True
                 except Exception as e:
-                    logger.error(f"❌ SANA-Video 2B load error: {e}", exc_info=True)
+                    logger.warning(f"LTX-Video load notice: {e}")
 
-            # ── 3. COGVIDEOX-2B ──
+            # ── 4. COGVIDEOX-2B ──
             if "2b" in req_engine:
                 try:
                     from diffusers import CogVideoXPipeline
@@ -132,28 +167,24 @@ class LightX2VEngine(BaseVideoEngine):
                 except Exception as e:
                     logger.error(f"❌ CogVideoX-2B load error: {e}", exc_info=True)
 
-            # ── 4. FALLBACK / EXPLICIT MODELSCOPE ──
-            if "modelscope" in req_engine or not _LOADED_PIPES:
+            # ── 5. SEAMLESS FALLBACK TO COGVIDEOX-5B (Never fail generation) ──
+            if not _LOADED_PIPES:
                 try:
-                    from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
-                    logger.info("🚀 Loading ModelScope text-to-video-ms-1.7b...")
-                    pipe = DiffusionPipeline.from_pretrained(
-                        "damo-vilab/text-to-video-ms-1.7b",
-                        torch_dtype=torch.float16,
-                        variant="fp16"
-                    )
-                    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
-                    pipe.enable_vae_slicing()
-                    pipe = pipe.to("cuda")
+                    from diffusers import CogVideoXPipeline
+                    logger.warning(f"⚠️ Requested model [{req_engine}] not ready on disk. Seamlessly loading CogVideoX-5B HD...")
+                    pipe = CogVideoXPipeline.from_pretrained(
+                        "THUDM/CogVideoX-5b",
+                        torch_dtype=torch.float16
+                    ).to("cuda")
 
-                    _LOADED_PIPES["ModelScope-1.7B"] = pipe
-                    _ACTIVE_MODEL_NAME = "ModelScope-1.7B"
-                    self.name = "ModelScope-1.7B"
-                    logger.info("✅ ModelScope 1.7B loaded on GPU.")
+                    _LOADED_PIPES["CogVideoX-5B"] = pipe
+                    _ACTIVE_MODEL_NAME = "CogVideoX-5B"
+                    self.name = "CogVideoX-5B-HD"
+                    logger.info("✅ Seamlessly recovered: CogVideoX-5B active!")
                     self.is_loaded = True
                     return True
                 except Exception as e:
-                    logger.error(f"ModelScope load error: {e}", exc_info=True)
+                    logger.error(f"CogVideoX-5B recovery load error: {e}")
 
         except Exception as e:
             logger.error(f"Engine initialization error: {e}", exc_info=True)
@@ -330,7 +361,24 @@ class LightX2VEngine(BaseVideoEngine):
                     from diffusers.utils import export_to_video
                     export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
                     generated = True
-                    logger.info("✅ SANA-Video 2B frames exported!")
+                elif "LTX" in _ACTIVE_MODEL_NAME:
+                    logger.info("🚀 Running LTX-Video inference (24fps DiT, 97 frames)...")
+                    video_output = active_pipe(
+                        prompt=clean_english_prompt,
+                        negative_prompt=neg_prompt,
+                        width=1280,
+                        height=704,
+                        num_frames=97,
+                        num_inference_steps=40,
+                        guidance_scale=3.5,
+                        generator=generator,
+                    )
+                    frames = video_output.frames[0]
+                    export_fps = max(1.0, len(frames) / target_duration)
+                    from diffusers.utils import export_to_video
+                    export_to_video(frames, str(raw_temp_video), fps=int(export_fps) if export_fps.is_integer() else round(export_fps, 2))
+                    generated = True
+                    logger.info("✅ LTX-Video frames exported!")
 
                 elif "ModelScope" in _ACTIVE_MODEL_NAME:
                     video_output = active_pipe(
