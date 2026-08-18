@@ -30,7 +30,7 @@ fi
 echo "📦 Verifying core dependencies (FastAPI, Uvicorn, Diffusers, FFmpeg)..."
 which ffmpeg >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq ffmpeg)
 ${PY_BIN} -m pip install -q -r backend/requirements.txt || true
-${PY_BIN} -m pip install -q git+https://github.com/huggingface/diffusers transformers accelerate torch torchvision timm edge-tts gTTS || true
+${PY_BIN} -m pip install --upgrade --no-cache-dir git+https://github.com/huggingface/diffusers transformers accelerate torch torchvision timm edge-tts gTTS sentencepiece protobuf || true
 
 # 4. Start backend with explicit PYTHONPATH
 echo "⚙️ Starting FastAPI server on port 8000..."
