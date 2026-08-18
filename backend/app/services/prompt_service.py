@@ -99,15 +99,18 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
             enhanced = ". ".join(translated_parts)
 
     p_lower = enhanced.lower()
-    has_character = any(c in p_lower for c in ["warrior", "man", "woman", "person", "people", "army", "character", "face", "commander", "king"])
+    has_character = any(c in p_lower for c in ["warrior", "man", "woman", "person", "people", "army", "character", "face", "commander", "king", "lord", "god", "krishna", "arjun", "karna", "hero"])
 
     # Enhance facial sharpness for character prompts
-    if has_character and "face" not in p_lower and "facial" not in p_lower:
-        enhanced = f"{enhanced}. Cinematic medium close-up shot, sharp detailed facial features, clear eyes and expression, 85mm prime lens focus."
+    if has_character:
+        if "face" not in p_lower and "facial" not in p_lower:
+            enhanced = f"{enhanced}. Cinematic medium shot, sharp detailed symmetrical facial features, clear expressive eyes, realistic skin texture, 85mm prime lens photography."
+        else:
+            enhanced = f"{enhanced}. Highly detailed symmetrical facial features, realistic eyes, cinematic dramatic lighting."
 
     has_quality = any(q in p_lower for q in ["4k", "8k", "photorealistic", "cinematic", "hd", "realistic"])
     if not has_quality:
-        enhanced = f"{enhanced}. Cinematic masterpiece, photorealistic 8K resolution, sharp focus."
+        enhanced = f"{enhanced}. Cinematic masterpiece, photorealistic 8K resolution, sharp focus, masterwork."
 
     return enhanced
 

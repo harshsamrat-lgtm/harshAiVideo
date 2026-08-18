@@ -221,14 +221,15 @@ class LightX2VEngine(BaseVideoEngine):
             video_output = active_pipe(
                 prompt=prompt,
                 num_videos_per_prompt=1,
-                num_inference_steps=max(40, steps),
-                guidance_scale=7.5,
+                num_inference_steps=max(45, steps),
+                guidance_scale=6.0,
                 num_frames=49,
                 generator=generator,
             )
             frames = video_output.frames[0]
             from diffusers.utils import export_to_video
-            export_to_video(frames, str(raw_output_path), fps=16)
+            # 49 frames @ 6fps = 8.16 seconds of native diffusion video
+            export_to_video(frames, str(raw_output_path), fps=6)
             return True
 
         elif "SANA" in _ACTIVE_MODEL_NAME:
@@ -238,8 +239,8 @@ class LightX2VEngine(BaseVideoEngine):
                     height=704,
                     width=1280,
                     num_frames=81,
-                    num_inference_steps=max(35, steps),
-                    guidance_scale=6.0,
+                    num_inference_steps=max(40, steps),
+                    guidance_scale=5.0,
                     generator=generator,
                 )
             except TypeError:
@@ -248,13 +249,14 @@ class LightX2VEngine(BaseVideoEngine):
                     height=704,
                     width=1280,
                     frames=81,
-                    num_inference_steps=max(35, steps),
-                    guidance_scale=6.0,
+                    num_inference_steps=max(40, steps),
+                    guidance_scale=5.0,
                     generator=generator,
                 )
             frames = video_output.frames[0]
             from diffusers.utils import export_to_video
-            export_to_video(frames, str(raw_output_path), fps=24)
+            # 81 frames @ 10fps = 8.10 seconds of native diffusion video
+            export_to_video(frames, str(raw_output_path), fps=10)
             return True
 
         elif "ModelScope" in _ACTIVE_MODEL_NAME:
@@ -262,14 +264,15 @@ class LightX2VEngine(BaseVideoEngine):
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 num_inference_steps=40,
-                guidance_scale=9.0,
+                guidance_scale=8.0,
                 num_frames=32,
                 generator=generator,
             )
             frames = video_output.frames[0]
             import imageio
+            # 32 frames @ 4fps = 8.0 seconds
             imageio.mimwrite(
-                str(raw_output_path), frames, fps=12,
+                str(raw_output_path), frames, fps=4,
                 codec="libx264", quality=9, pixelformat="yuv420p"
             )
             return True
@@ -283,29 +286,15 @@ class LightX2VEngine(BaseVideoEngine):
         chunk_duration: float,
         resolution: str = "1280x720"
     ) -> bool:
-        """Processes raw diffusion video into a smooth, 24fps HD clip."""
-        global _ACTIVE_MODEL_NAME
+        """Processes raw diffusion video into a smooth, 24fps HD clip guaranteed to match chunk_duration."""
         target_w, target_h = (1280, 720) if "720" in resolution else (1920, 1080)
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
 
-        if "SANA" in _ACTIVE_MODEL_NAME:
-            raw_fps = 24
-            raw_duration = 81.0 / 24.0
-        elif "CogVideo" in _ACTIVE_MODEL_NAME:
-            raw_fps = 16
-            raw_duration = 49.0 / 16.0
-        else:
-            raw_fps = 12
-            raw_duration = 32.0 / 12.0
-
-        time_stretch = chunk_duration / max(1.0, raw_duration)
-
         vf_filter = (
-            f"setpts={time_stretch:.4f}*PTS,"
-            f"minterpolate=fps=24:mi_mode=blend,"
+            f"fps=24,"
             f"scale=w={target_w}:h={target_h}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={target_w}:{target_h},"
-            f"unsharp=5:5:1.2:5:5:0.6,"
+            f"unsharp=5:5:1.0:5:5:0.5,"
             f"eq=contrast=1.05:saturation=1.05"
         )
 
@@ -313,6 +302,7 @@ class LightX2VEngine(BaseVideoEngine):
             ffmpeg_cmd, "-y",
             "-i", str(raw_video_path),
             "-vf", vf_filter,
+            "-r", "24",
             "-t", str(chunk_duration),
             "-c:v", "libx264",
             "-crf", "16",
@@ -331,7 +321,8 @@ class LightX2VEngine(BaseVideoEngine):
                 fallback_cmd = [
                     ffmpeg_cmd, "-y",
                     "-i", str(raw_video_path),
-                    "-vf", f"setpts={time_stretch:.4f}*PTS,scale={target_w}:{target_h}",
+                    "-vf", f"fps=24,scale={target_w}:{target_h}",
+                    "-r", "24",
                     "-t", str(chunk_duration),
                     "-c:v", "libx264", "-pix_fmt", "yuv420p",
                     str(enhanced_chunk_path)
