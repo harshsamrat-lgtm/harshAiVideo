@@ -1,71 +1,48 @@
 """
 Prompt Synthesizer & Dual-Track Visual/Voice-over Parser for Harsh AI Video Studio.
-Optimized for CogVideoX-5B and SANA-Video 2B diffusion models.
-Translates all Hindi/Devanagari prompts into ultra-rich, photorealistic cinematic English.
-Enforces crystal-clear facial symmetry, natural skin texture, and sharp 8K visual precision.
+Optimized for CogVideoX-5B text-to-video diffusion model.
+Splits compound prompts into clean visual scene directions and spoken Voice-over dialogue.
+Automatically enhances facial clarity, character features, and 8K visual precision.
 """
 import re
 from typing import List, Optional, Dict, Any, Tuple
 from app.models.schemas import CharacterResponse, LocationResponse
 
 
-# Comprehensive Hindi to English visual descriptor lexicon
+# Hindi to English visual descriptor lexicon
 HINDI_DICTIONARY = {
-    # Faces & Characters
-    "चेहरा": "a handsome highly detailed symmetrical face, clear expressive eyes, realistic skin texture",
-    "चेहरे": "handsome highly detailed symmetrical faces with sharp features and expressive eyes",
-    "आंखें": "clear piercing expressive eyes with detailed irises",
-    "आंख": "clear piercing expressive eye with detailed iris",
-    "योद्धा": "an ancient Indian warrior with sharp chiseled facial features, royal golden armor, and intense eyes",
-    "योद्धाओं": "ancient Indian warriors with sharp facial features, royal armor, and intense expressions",
-    "सैनिक": "brave Indian soldiers marching in formation with detailed armor and weapons",
-    "राजा": "a majestic Indian king wearing an ornate golden crown, royal saffron robes, and majestic beard",
-    "रानी": "a gorgeous royal Indian queen wearing traditional silk saree and golden jewelry",
-    "सुंदर": "a beautiful highly detailed photorealistic aesthetic with perfect proportions",
-    "श्री कृष्ण": "Lord Krishna with radiant divine blue aura, peacock feather in crown, compassionate smiling face",
-    "कृष्ण": "Lord Krishna with radiant divine golden aura, peacock feather, and graceful face",
-    "अर्जुन": "the legendary archer warrior Arjuna holding Gandiva bow with focused intense eyes",
-    "कर्ण": "the mighty warrior Karna with glowing golden armor (Kavach Kundal) and heroic sharp face",
-    "भीष्म": "the revered grand warrior Bhishma with white beard, majestic demeanor, and golden armor",
-    "हनुमान": "Lord Hanuman in divine heroic form, radiant aura, muscular physique, holding golden mace",
-    "राम": "Lord Rama with divine serene face, holding Kodanda bow, royal attire",
-    "शिव": "Lord Shiva in deep meditation with crescent moon, sacred ash (vibhuti), and flowing river Ganga",
-    "साधु": "an ancient sage with white beard meditating serenely under a banyan tree",
-
-    # Animals
-    "शेर": "a majestic lion with detailed golden mane walking powerfully through grasslands",
-    "बाघ": "a powerful royal bengal tiger with sharp stripes stalking through lush jungle",
-    "हाथी": "a majestic ancient elephant with ornate golden ceremonial decorations",
-    "घोड़ा": "a magnificent white stallion galloping with muscular power",
-    "चीता": "a sleek cheetah sprinting across savanna",
-    "पक्षी": "birds soaring gracefully across golden sky",
-
-    # Environment & Landscapes
-    "कुरुक्षेत्र": "the epic historic battlefield of Kurukshetra at sunset with dust swirling and saffron banners",
-    "महायुद्ध": "an epic battlefield scene with thousands of warriors and chariots gathering under dramatic crimson sky",
-    "द्वापर युग": "ancient India during the epic Dwapar Yuga era with grand palaces and Vedic architecture",
-    "आर्यावर्त": "the vast sacred realm of Aryavarta with pristine rivers and Himalayan mountains",
-    "महल": "a grand ancient stone palace with intricately carved pillars and fluttering saffron flags",
-    "किला": "a massive ancient fortress on a rocky cliff under dramatic sunset",
-    "मंदिर": "an ancient intricately carved stone temple surrounded by sacred oil lamps (diyas)",
-    "गांव": "a peaceful ancient village with thatched cottages and holy banyan tree",
-    "जंगल": "a dense ancient forest with giant banyan trees and sunbeams piercing through the canopy",
-    "पहाड़": "towering snow-capped Himalayan mountain peaks glowing in morning light",
-    "नदी": "a sacred winding river reflecting the golden sunset light",
-    "गंगा": "the holy river Ganga flowing through ancient stone ghats with floating oil lamps",
-    "समुद्र": "dramatic ocean waves crashing against ancient coastal cliffs",
-    "सूर्य": "the radiant golden sun casting dramatic rays through misty air",
-    "सूर्यास्त": "a breathtaking golden hour sunset with crimson, violet, and amber clouds",
-    "सूर्योदय": "a glorious golden sunrise illuminating ancient landscape",
-    "चांद": "a luminous full moon casting ethereal silver light across night landscape",
-    "रात": "a dark cinematic starry night with milky way and glowing torches",
-    "बारिश": "heavy monsoon rain with water droplets splashing on ground",
-    "तूफान": "a dramatic storm with swirling dark thunderclouds and lightning strikes",
-    "आग": "crackling golden flames and glowing embers rising in dark night",
-    "रथ": "an ornate golden chariot pulled by armored white horses",
-    "धनुष": "an ornate ancient bow drawn with golden glowing arrow",
-    "तलवार": "a polished steel sword reflecting dramatic sunlight",
-    "युद्ध": "an epic cinematic battle with warriors charging forward",
+    "शेर": "a majestic lion with detailed fur walking powerfully through grasslands",
+    "बाघ": "a powerful royal bengal tiger with sharp stripes stalking through jungle",
+    "हाथी": "a majestic ancient elephant with golden ornaments",
+    "घोड़ा": "a magnificent horse galloping at full speed",
+    "चीता": "a sleek cheetah sprinting across open savanna",
+    "पक्षी": "birds soaring gracefully across the sky",
+    "बर्फ": "deep white snow covering a vast mountain landscape",
+    "जंगल": "a dense ancient forest with massive banyan and sal trees",
+    "पहाड़": "towering snow-capped Himalayan mountain peaks",
+    "नदी": "a sacred winding river with golden reflections",
+    "समुद्र": "dramatic ocean waves crashing against stone cliffs",
+    "सूर्य": "the golden sun radiating warm light",
+    "सूर्यास्त": "a dramatic golden hour sunset with crimson and amber sky",
+    "सूर्योदय": "a glorious golden sunrise spreading dawn light across ancient terrain",
+    "चांद": "a luminous glowing full moon in a dark sky",
+    "रात": "a dark atmospheric night with a starry cosmic sky",
+    "दिन": "a bright clear morning with pristine light",
+    "बारिश": "heavy monsoon rain pouring down with water ripples on the ground",
+    "तूफान": "a dramatic thunderstorm with dark swirling clouds and lightning",
+    "हवा": "a gentle breeze swaying lush green foliage",
+    "पेड़": "ancient sacred trees with twisting roots and dense canopy",
+    "गांव": "a small ancient settlement with thatched cottages and curling woodsmoke",
+    "महल": "a grand ancient stone palace with carved pillars and saffron flags",
+    "गाड़ी": "a fast car driving along a scenic road",
+    "शहर": "a vibrant modern city with tall buildings and busy streets",
+    "अंतरिक्ष": "the vast dark expanse of outer space with distant stars",
+    "योद्धा": "ancient Indian warriors with sharp facial features, royal golden crowns, bow and spear",
+    "रथ": "an ornate golden chariot pulled by armored horses",
+    "द्वापर युग": "ancient India during the legendary Dwapar Yuga era",
+    "आर्यावर्त": "the vast epic landscape of ancient Aryavarta with holy rivers and mountains",
+    "महायुद्ध": "an epic battlefield with warriors gathering under dramatic sunset sky",
+    "कुरुक्षेत्र": "the vast plains of Kurukshetra at sunset with warriors and chariots marching",
 }
 
 
@@ -102,18 +79,15 @@ def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Optional[str]]:
 def translate_and_enhance_hindi_prompt(text: str) -> str:
     """
     Translates Hindi/Devanagari to rich cinematic English visual descriptions.
-    Guarantees 100% clean English text suitable for text encoders (T5-XXL / Gemma).
-    Enforces sharp facial symmetry, realistic skin texture, and 8K visual precision.
+    Optimized for CogVideoX-5B model's prompt format.
+    Enforces sharp facial clarity, realistic character details, and 8K visual precision.
     """
     if not text:
-        return (
-            "A cinematic medium portrait of a legendary ancient Indian warrior with sharp symmetrical facial features, "
-            "intense eyes, golden armor, photorealistic 8K resolution, 85mm portrait photography."
-        )
+        return "A sweeping cinematic medium shot of ancient Indian warriors with sharp facial features and golden armor at sunset, photorealistic 4K quality."
 
     enhanced = text.strip()
 
-    # Step 1: Translate Hindi dictionary terms
+    # Translate Hindi terms to English visual descriptions
     if re.search(r'[\u0900-\u097F]', enhanced):
         translated_parts = []
         remaining = enhanced
@@ -121,35 +95,19 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
             if hindi_word in remaining:
                 translated_parts.append(eng_desc)
                 remaining = remaining.replace(hindi_word, "").strip()
-
         if translated_parts:
             enhanced = ". ".join(translated_parts)
-        else:
-            # Fallback if Hindi text had no dictionary hit: generate clean high-quality character scene
-            enhanced = (
-                "A cinematic medium shot of an ancient Indian warrior hero with sharp symmetrical facial features, "
-                "intense clear eyes, chiseled jawline, royal armor, standing dramatically on battlefield"
-            )
-
-    # Step 2: Strip any leftover Devanagari characters to ensure text-encoder compatibility
-    enhanced = re.sub(r'[\u0900-\u097F]+', '', enhanced).strip()
-    if not enhanced or len(enhanced) < 10:
-        enhanced = "A majestic cinematic medium shot of an ancient warrior with sharp facial features in dramatic golden hour light"
 
     p_lower = enhanced.lower()
-    has_character = any(c in p_lower for c in ["warrior", "man", "woman", "person", "people", "army", "character", "face", "commander", "king", "lord", "god", "krishna", "arjun", "karna", "hero", "soldier", "queen"])
+    has_character = any(c in p_lower for c in ["warrior", "man", "woman", "person", "people", "army", "character", "face", "commander", "king"])
 
-    # Step 3: Enforce facial clarity & symmetry
-    if has_character:
-        if "symmetrical" not in p_lower:
-            enhanced = (
-                f"{enhanced}. Cinematic medium portrait shot, extremely detailed sharp symmetrical facial features, "
-                f"clear expressive eyes, realistic skin texture, 85mm prime lens photography, dramatic studio lighting"
-            )
+    # Enhance facial sharpness for character prompts
+    if has_character and "face" not in p_lower and "facial" not in p_lower:
+        enhanced = f"{enhanced}. Cinematic medium close-up shot, sharp detailed facial features, clear eyes and expression, 85mm prime lens focus."
 
     has_quality = any(q in p_lower for q in ["4k", "8k", "photorealistic", "cinematic", "hd", "realistic"])
     if not has_quality:
-        enhanced = f"{enhanced}. Cinematic masterpiece, photorealistic 8K resolution, sharp focus, masterwork."
+        enhanced = f"{enhanced}. Cinematic masterpiece, photorealistic 8K resolution, sharp focus."
 
     return enhanced
 
@@ -167,9 +125,8 @@ class PromptService:
         enhanced_action = translate_and_enhance_hindi_prompt(visual_raw)
 
         negative_segments: List[str] = [
-            "deformed face", "ugly face", "distorted eyes", "asymmetrical face", "bad anatomy",
-            "blurry face", "disfigured pupils", "watermark", "text", "extra limbs", "ugly",
-            "duplicate", "jpeg artifacts", "cartoon", "3d render", "low quality"
+            "blurry face", "deformed face", "blurry", "low quality", "deformed anatomy", "bad proportions",
+            "featureless face", "disfigured eyes", "watermark", "text", "extra limbs", "ugly", "duplicate", "jpeg artifacts"
         ]
 
         prompt_parts = [enhanced_action]

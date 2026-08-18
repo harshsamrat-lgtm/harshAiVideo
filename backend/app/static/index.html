@@ -552,14 +552,8 @@
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div class="form-group">
-              <label>क्लिप अवधि (Clip Duration & Multi-Shot)</label>
-              <select id="g-dur">
-                <option value="8.0" selected>⚡ 8.0s (Single HD Shot)</option>
-                <option value="16.0">🎬 16.0s (Dual Shot · Seamless Chain)</option>
-                <option value="24.0">🎬 24.0s (Triple Shot · 3-Chunk Scene)</option>
-                <option value="32.0">🎥 32.0s (Extended Story Scene · 4-Chunk)</option>
-                <option value="60.0">👑 60.0s (Full Cinematic Short Film · 8-Chunk)</option>
-              </select>
+              <label>क्लिप अवधि (4 - 12 सेकंड)</label>
+              <input type="number" id="g-dur" value="8.0" min="4.0" max="12.0" step="1.0">
             </div>
             <div class="form-group">
               <label>रेज़ोल्यूशन (Resolution)</label>

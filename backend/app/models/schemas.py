@@ -179,7 +179,7 @@ class GenerationRequest(BaseModel):
     reference_image_path: Optional[str] = None
     prompt: str
     negative_prompt: Optional[str] = None
-    duration: float = Field(default=8.0, ge=1.0, le=60.0)
+    duration: float = Field(default=5.0, ge=1.0, le=15.0)
     resolution: str = Field(default="1280x720")
     seed: int = Field(default=-1)
     engine: str = Field(default="lightx2v")

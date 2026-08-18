@@ -75,9 +75,7 @@ async def _generation_task(job_id: str, payload: dict):
         await _update_job(job_id, JobState.GENERATING, 35.0, f"Encoding visual prompt and reference frame...")
         await asyncio.sleep(0.1)
 
-        import math
-        chunks = max(1, math.ceil(duration / 8.0))
-        await _update_job(job_id, JobState.GENERATING, 45.0, f"Running {engine.name} ({duration}s · {chunks} shot chunk{'s' if chunks > 1 else ''})...")
+        await _update_job(job_id, JobState.GENERATING, 55.0, f"Running {engine.name} diffusion pipeline ({steps} steps)...")
 
         # Ensure output directory exists
         out_dir = Path(settings.OUTPUT_ROOT)
