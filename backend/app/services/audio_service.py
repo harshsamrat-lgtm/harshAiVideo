@@ -66,7 +66,7 @@ class AudioService:
                             voice=spk_voice,
                             rate=spk_rate,
                             pitch=spk_pitch,
-                            volume="+35%"
+                            volume="+20%"
                         )
                         await communicate.save(str(clip_file))
                     except Exception as e:
@@ -81,23 +81,43 @@ class AudioService:
                     if clip_file.exists() and clip_file.stat().st_size > 100:
                         audio_clips.append(clip_file)
 
-                # Merge turn 0 (0-4s) and turn 1 (4-8s) into seamless 8s dialogue track
-                if len(audio_clips) == 2:
-                    # Delay clip 1 by 3800ms so Raghavendra speaks right after Kittu
-                    merge_cmd = [
-                        ffmpeg_cmd, "-y",
-                        "-i", str(audio_clips[0]),
-                        "-i", str(audio_clips[1]),
-                        "-filter_complex",
-                        "[0:a]volume=1.6[a0];"
-                        "[1:a]adelay=3800|3800,volume=1.6[a1];"
-                        "[a0][a1]amix=inputs=2:duration=longest:dropout_transition=0",
-                        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-                        str(output_speech_path)
-                    ]
-                    subprocess.run(merge_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                # Merge turn 0 (0-3.8s) and turn 1 (3.8-8s) into seamless 8s dialogue track
+                if len(audio_clips) >= 1:
+                    if len(audio_clips) == 2:
+                        # Probe duration of clip 0 to calculate proper delay for clip 1
+                        clip0_dur = AudioService._probe_duration(ffmpeg_cmd, audio_clips[0])
+                        delay_ms = int((clip0_dur + 0.3) * 1000)  # 300ms natural pause after first speaker
+                        delay_ms = max(2000, min(delay_ms, 5000))  # Clamp between 2s and 5s
+
+                        logger.info(f"   Clip 0 duration: {clip0_dur:.2f}s, delay for clip 1: {delay_ms}ms")
+
+                        # Normalize each clip to -18 LUFS, then merge with proper delay
+                        merge_cmd = [
+                            ffmpeg_cmd, "-y",
+                            "-i", str(audio_clips[0]),
+                            "-i", str(audio_clips[1]),
+                            "-filter_complex",
+                            f"[0:a]loudnorm=I=-18:LRA=7:TP=-2[a0];"
+                            f"[1:a]adelay={delay_ms}|{delay_ms},loudnorm=I=-18:LRA=7:TP=-2[a1];"
+                            f"[a0][a1]amix=inputs=2:duration=longest:dropout_transition=0,"
+                            f"afade=t=out:st=7.5:d=0.5",
+                            "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+                            str(output_speech_path)
+                        ]
+                        subprocess.run(merge_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                    else:
+                        # Only one clip successfully synthesized - use it directly
+                        norm_cmd = [
+                            ffmpeg_cmd, "-y",
+                            "-i", str(audio_clips[0]),
+                            "-af", "loudnorm=I=-18:LRA=7:TP=-2",
+                            "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+                            str(output_speech_path)
+                        ]
+                        subprocess.run(norm_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
                     if output_speech_path.exists() and output_speech_path.stat().st_size > 100:
-                        logger.info("✅ Multi-character child dialogue successfully stitched into 8s track!")
+                        logger.info("✅ Multi-character dialogue successfully stitched!")
                         return True
 
             # Case 2: Single Dialogue / Narration
@@ -116,6 +136,7 @@ class AudioService:
                 chosen_voice = "hi-IN-SwaraNeural" if is_child_voice else voice
 
                 logger.info(f"🎙️ Generating Neural Voice-over: '{single_text[:50]}...' ({chosen_voice}, pitch={pitch_mod})")
+                raw_speech = temp_dir / "raw_speech.mp3"
                 try:
                     import edge_tts
                     communicate = edge_tts.Communicate(
@@ -123,18 +144,29 @@ class AudioService:
                         voice=chosen_voice,
                         rate=rate_mod,
                         pitch=pitch_mod,
-                        volume="+35%"
+                        volume="+20%"
                     )
-                    await communicate.save(str(output_speech_path))
-                    if output_speech_path.exists() and output_speech_path.stat().st_size > 100:
-                        logger.info(f"✅ Voice-over generated ({output_speech_path.stat().st_size / 1024:.1f} KB)")
-                        return True
+                    await communicate.save(str(raw_speech))
                 except Exception as e:
                     logger.warning(f"Edge-TTS notice ({e}), falling back to gTTS...")
                     from gtts import gTTS
                     tts = gTTS(text=single_text, lang="hi", slow=False)
-                    tts.save(str(output_speech_path))
-                    return output_speech_path.exists() and output_speech_path.stat().st_size > 100
+                    tts.save(str(raw_speech))
+
+                # Normalize speech loudness to broadcast standard
+                if raw_speech.exists() and raw_speech.stat().st_size > 100:
+                    norm_cmd = [
+                        ffmpeg_cmd, "-y",
+                        "-i", str(raw_speech),
+                        "-af", "loudnorm=I=-18:LRA=7:TP=-2",
+                        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+                        str(output_speech_path)
+                    ]
+                    subprocess.run(norm_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+                    if output_speech_path.exists() and output_speech_path.stat().st_size > 100:
+                        logger.info(f"✅ Voice-over generated ({output_speech_path.stat().st_size / 1024:.1f} KB)")
+                        return True
 
         except Exception as e:
             logger.error(f"Voiceover generation error: {e}", exc_info=True)
@@ -147,14 +179,28 @@ class AudioService:
         return output_speech_path.exists() and output_speech_path.stat().st_size > 100
 
     @staticmethod
+    def _probe_duration(ffmpeg_cmd: str, audio_file: Path) -> float:
+        """Probe audio file duration in seconds using ffprobe."""
+        ffprobe_cmd = ffmpeg_cmd.replace("ffmpeg", "ffprobe")
+        try:
+            result = subprocess.run(
+                [ffprobe_cmd, "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(audio_file)],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=10
+            )
+            return float(result.stdout.decode().strip())
+        except Exception:
+            return 3.5  # Safe default: 3.5s for a short dialogue line
+
+    @staticmethod
     def generate_ambient_music_for_prompt(
         prompt: str,
         duration_seconds: float,
         output_music_path: Path
     ) -> bool:
         """
-        Generates ambient music or soft room atmosphere.
-        If prompt specifies 'no background music' or 'no bgm', generates soft gentle presence.
+        Generates rich ambient background atmosphere with layered harmonics and fade-in/fade-out.
+        If prompt specifies 'no background music' or 'no bgm', generates ultra-soft room presence.
         """
         p_lower = prompt.lower()
         dur = max(2.0, duration_seconds)
@@ -162,28 +208,78 @@ class AudioService:
 
         is_no_music = "no background music" in p_lower or "no bgm" in p_lower or "no music" in p_lower
         is_mythological = any(k in p_lower for k in ["ancient", "india", "dwapar", "aryavarta", "war", "epic", "mytholog", "sunset", "sunrise"])
+        is_children = any(k in p_lower for k in ["child", "children", "boy", "boys", "girl", "girls", "kid", "kids", "courtyard", "play"])
         is_vehicle = any(k in p_lower for k in ["car", "racing", "speed", "road", "vehicle"])
         is_rain = any(k in p_lower for k in ["rain", "storm", "thunder"])
+        is_nature = any(k in p_lower for k in ["forest", "river", "mountain", "village", "garden", "tree", "field"])
 
         if is_no_music:
-            # Soft warm ambient air presence so video is not dead silent between words
-            audio_filter = f"anoisesrc=d={dur}:c=pink:r=48000:a=0.03,lowpass=f=800,volume=0.1"
-        elif is_mythological:
+            # Ultra-soft warm room presence so there's no dead silence
             audio_filter = (
-                f"aevalsrc='sin(2*PI*110*t)*0.2+sin(2*PI*165*t)*0.15+sin(2*PI*220*t)*0.1':d={dur}:s=48000:c=stereo,"
-                "lowpass=f=2200,volume=0.4"
+                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.015,"
+                f"lowpass=f=600,highpass=f=60,"
+                f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
+                f"volume=0.08"
+            )
+        elif is_children:
+            # Warm gentle melodic atmosphere for child scenes — soft tanpura + birds
+            audio_filter = (
+                f"aevalsrc='sin(2*PI*261.6*t)*0.12*sin(PI*t/{dur})"
+                f"+sin(2*PI*329.6*t)*0.08*sin(PI*t/{dur})"
+                f"+sin(2*PI*392.0*t)*0.06*sin(PI*t/{dur})"
+                f"+sin(2*PI*523.3*t)*0.04*sin(PI*t/{dur})'"
+                f":d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=3000,highpass=f=80,"
+                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
+                f"volume=0.25"
+            )
+        elif is_mythological:
+            # Deep epic tanpura drone with harmonic overtones
+            audio_filter = (
+                f"aevalsrc='sin(2*PI*110*t)*0.15*sin(PI*t/{dur})"
+                f"+sin(2*PI*165*t)*0.10*sin(PI*t/{dur})"
+                f"+sin(2*PI*220*t)*0.08*sin(PI*t/{dur})"
+                f"+sin(2*PI*330*t)*0.05*sin(PI*t/{dur})'"
+                f":d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=2500,highpass=f=60,"
+                f"afade=t=in:st=0:d=2.0,afade=t=out:st={dur-2.0}:d=2.0,"
+                f"volume=0.30"
+            )
+        elif is_nature:
+            # Soft rustling leaves + gentle wind + birds-like harmonics
+            audio_filter = (
+                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.08,"
+                f"lowpass=f=2000,highpass=f=200,"
+                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
+                f"volume=0.20"
             )
         elif is_vehicle:
+            # Low engine rumble with movement
             audio_filter = (
-                f"aevalsrc='sin(2*PI*(90+30*t)*t)*0.3+(random(0)-0.5)*0.1':d={dur}:s=48000:c=stereo,"
-                "lowpass=f=1200,volume=0.4"
+                f"aevalsrc='sin(2*PI*(80+20*sin(0.5*t))*t)*0.20+(random(0)-0.5)*0.05'"
+                f":d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=800,highpass=f=30,"
+                f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
+                f"volume=0.30"
             )
         elif is_rain:
-            audio_filter = f"anoisesrc=d={dur}:c=pink:r=48000:a=0.25,lowpass=f=2200,highpass=f=300,volume=0.3"
-        else:
+            # Rich rain texture with depth
             audio_filter = (
-                f"aevalsrc='sin(2*PI*130*t)*0.2+sin(2*PI*195*t)*0.15':d={dur}:s=48000:c=stereo,"
-                "lowpass=f=2200,volume=0.3"
+                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.20,"
+                f"lowpass=f=2500,highpass=f=200,"
+                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
+                f"volume=0.25"
+            )
+        else:
+            # Default: Warm cinematic pad with gentle harmonics
+            audio_filter = (
+                f"aevalsrc='sin(2*PI*130.8*t)*0.12*sin(PI*t/{dur})"
+                f"+sin(2*PI*196.0*t)*0.08*sin(PI*t/{dur})"
+                f"+sin(2*PI*261.6*t)*0.05*sin(PI*t/{dur})'"
+                f":d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=2500,highpass=f=60,"
+                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
+                f"volume=0.25"
             )
 
         cmd = [
@@ -200,6 +296,8 @@ class AudioService:
 
         try:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if result.returncode != 0:
+                logger.warning(f"Ambient music FFmpeg stderr: {result.stderr.decode('utf-8', errors='ignore')[:200]}")
             return output_music_path.exists() and output_music_path.stat().st_size > 0
         except Exception as e:
             logger.warning(f"Music synthesis error: {e}")
@@ -212,7 +310,8 @@ class AudioService:
         final_audio_path: Path
     ) -> bool:
         """
-        Mixes Voice-over Speech (Volume 1.6, prominent) with Ambient Music (Volume 0.2, subtle back).
+        Mixes Voice-over Speech (foreground, normalized) with Ambient Music (background, ducked).
+        Uses sidechain-style ducking: music volume drops when speech is present.
         """
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
         
@@ -226,11 +325,17 @@ class AudioService:
             shutil.copy(str(voice_path), str(final_audio_path))
             return True
 
+        # Voice at full volume, music ducked to 15% behind voice
+        # Using sidechaincompress for natural ducking effect
         cmd = [
             ffmpeg_cmd, "-y",
             "-i", str(voice_path),
             "-i", str(music_path),
-            "-filter_complex", "[0:a]volume=1.6[a1];[1:a]volume=0.2[a2];[a1][a2]amix=inputs=2:duration=longest:dropout_transition=1",
+            "-filter_complex",
+            "[0:a]aformat=sample_rates=48000:channel_layouts=stereo[voice];"
+            "[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.15[music];"
+            "[voice][music]amix=inputs=2:duration=longest:dropout_transition=2:weights=1 0.15,"
+            "loudnorm=I=-16:LRA=7:TP=-1.5",
             "-c:a", "aac",
             "-b:a", "192k",
             "-ar", "48000",
@@ -238,7 +343,11 @@ class AudioService:
         ]
 
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False)
+            if result.returncode != 0:
+                logger.warning(f"Audio mix FFmpeg issue: {result.stderr.decode('utf-8', errors='ignore')[:200]}")
+                # Fallback: just use voice
+                shutil.copy(str(voice_path), str(final_audio_path))
             return final_audio_path.exists() and final_audio_path.stat().st_size > 0
         except Exception as e:
             logger.warning(f"Audio mixing failed: {e}")
@@ -252,11 +361,18 @@ class AudioService:
         final_output_path: Path,
         duration_seconds: float = 8.0
     ) -> bool:
-        """Muxes the combined voice-over + music audio track into the MP4 video without truncating video."""
+        """Muxes the combined voice-over + music audio track into the MP4 video without truncating."""
         ffmpeg_cmd = shutil.which("ffmpeg") or "ffmpeg"
         temp_out = final_output_path.parent / f"mux_{final_output_path.name}"
         dur = max(4.0, float(duration_seconds or 8.0))
         
+        # Clean up any leftover temp file from previous failed runs
+        if temp_out.exists():
+            try:
+                temp_out.unlink()
+            except Exception:
+                pass
+
         cmd = [
             ffmpeg_cmd, "-y",
             "-i", str(video_path),
@@ -273,12 +389,18 @@ class AudioService:
         ]
 
         try:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=120)
             if temp_out.exists() and temp_out.stat().st_size > 0:
+                # Safely replace: delete original first, then rename temp
                 if final_output_path.exists():
                     final_output_path.unlink()
                 temp_out.rename(final_output_path)
+                logger.info(f"✅ Audio muxed into video successfully ({final_output_path.stat().st_size / 1024:.1f} KB)")
                 return True
+            else:
+                logger.warning(f"Mux produced empty file. FFmpeg stderr: {result.stderr.decode('utf-8', errors='ignore')[:200]}")
+        except subprocess.TimeoutExpired:
+            logger.warning("Muxing timed out after 120s")
         except Exception as e:
             logger.warning(f"Muxing failed: {e}")
         return False

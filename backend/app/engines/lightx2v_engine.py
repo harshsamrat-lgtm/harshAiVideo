@@ -84,20 +84,17 @@ class LightX2VEngine(BaseVideoEngine):
                         torch_dtype=torch.float16
                     ).to("cuda")
                     
-                    if hasattr(pipe, "vae"):
-                        if hasattr(pipe.vae, "enable_tiling"): pipe.vae.enable_tiling()
-                        if hasattr(pipe.vae, "enable_slicing"): pipe.vae.enable_slicing()
-
+                    # On 32GB/48GB GPU (RTX 5090), we do NOT enable VAE tiling/slicing to prevent eye/mouth seam distortions
                     _LOADED_PIPES["CogVideoX-5B"] = pipe
                     _ACTIVE_MODEL_NAME = "CogVideoX-5B"
                     self.name = "CogVideoX-5B-HD"
-                    logger.info("✅ CogVideoX-5B loaded successfully on GPU!")
+                    logger.info("✅ CogVideoX-5B loaded successfully on GPU (Full VAE precision without tiling)!")
                     self.is_loaded = True
                     return True
                 except Exception as e:
                     logger.error(f"❌ CogVideoX-5B load error: {e}", exc_info=True)
 
-            # ── 2. SANA-Video 2B 720p (NVIDIA Linear DiT Video Model) ──
+            # ── 2. SANA-VIDEO-2B 720p (NVIDIA Linear DiT Video Model) ──
             if "sana" in req_engine:
                 try:
                     from diffusers import SanaVideoPipeline
@@ -106,10 +103,6 @@ class LightX2VEngine(BaseVideoEngine):
                         "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
                         torch_dtype=torch.bfloat16
                     ).to("cuda")
-
-                    if hasattr(pipe, "vae"):
-                        if hasattr(pipe.vae, "enable_tiling"): pipe.vae.enable_tiling()
-                        if hasattr(pipe.vae, "enable_slicing"): pipe.vae.enable_slicing()
 
                     _LOADED_PIPES["SANA-Video-2B"] = pipe
                     _ACTIVE_MODEL_NAME = "SANA-Video-2B"
@@ -129,10 +122,6 @@ class LightX2VEngine(BaseVideoEngine):
                         "THUDM/CogVideoX-2b",
                         torch_dtype=torch.float16
                     ).to("cuda")
-                    
-                    if hasattr(pipe, "vae"):
-                        if hasattr(pipe.vae, "enable_tiling"): pipe.vae.enable_tiling()
-                        if hasattr(pipe.vae, "enable_slicing"): pipe.vae.enable_slicing()
 
                     _LOADED_PIPES["CogVideoX-2B"] = pipe
                     _ACTIVE_MODEL_NAME = "CogVideoX-2B"
@@ -237,8 +226,10 @@ class LightX2VEngine(BaseVideoEngine):
         neg_prompt = (
             negative_prompt or
             "distorted face, deformed mouth, warped eyes, asymmetrical face, mutated facial features, "
-            "poorly drawn hands, deformed hands, extra fingers, missing fingers, fused fingers, too many fingers, "
-            "deformed limbs, disconnected limbs, floating limbs, bad anatomy, bad proportions, "
+            "wobbling pupils, shifting eyes, moving eyeballs, crossed eyes, misaligned pupils, wandering gaze, "
+            "teeth morphing, split lips, deformed fingers, morphing fingers, extra fingers, missing fingers, fused fingers, six fingers, "
+            "poorly drawn hands, deformed hands, shifting hands, floating hands, extra limbs, deformed limbs, disconnected limbs, "
+            "melting skin, boiling textures, temporal jitter, uncanny valley, double faces, disfigured limbs, "
             "blurry face, blurry eyes, ghosting, jitter, flicker, low quality, morphing artifacts, "
             "text, watermark, ugly, duplicate, jpeg artifacts"
         )
@@ -284,14 +275,15 @@ class LightX2VEngine(BaseVideoEngine):
             active_pipe = _LOADED_PIPES.get(_ACTIVE_MODEL_NAME)
 
             if active_pipe is not None:
-                logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (Duration: {target_duration}s)...")
+                logger.info(f"🎬 Executing inference on [{_ACTIVE_MODEL_NAME}] (Duration: {target_duration}s, Stable Guidance: 6.0)...")
                 
                 if "CogVideo" in _ACTIVE_MODEL_NAME:
                     video_output = active_pipe(
                         prompt=clean_english_prompt,
+                        negative_prompt=neg_prompt,
                         num_videos_per_prompt=1,
-                        num_inference_steps=65,
-                        guidance_scale=7.5,
+                        num_inference_steps=50,
+                        guidance_scale=6.0,
                         num_frames=49,
                         generator=generator,
                     )

@@ -153,15 +153,27 @@ def parse_prompt_and_voiceover(raw_input: str) -> Tuple[str, Any]:
                 })
                 break
 
-    # If still no dialogue, and input is pure Hindi, use full input as narration
+    # If still no dialogue, and input is pure Hindi, extract only clean spoken content
     if not dialogues and re.search(r'[\u0900-\u097F]', raw_input):
-        clean_hindi = re.sub(r'[\#\*\_]+', ' ', raw_input).strip()
-        dialogues.append({
-            "speaker": "Narrator",
-            "text": clean_hindi,
-            "is_child": is_child_scene,
-            "turn": 0
-        })
+        # Strip markdown, headers, script directions, timecodes — keep only natural speech
+        clean_hindi = raw_input
+        clean_hindi = re.sub(r'#.*?\n', ' ', clean_hindi)              # Remove markdown headers
+        clean_hindi = re.sub(r'\*\*.*?\*\*', ' ', clean_hindi)         # Remove bold text
+        clean_hindi = re.sub(r'\d+[–\-]\d+\s*सेकंड.*?:', ' ', clean_hindi)  # Remove timecodes
+        clean_hindi = re.sub(r'दृश्य\s*:.*?\n', ' ', clean_hindi)      # Remove scene directions
+        clean_hindi = re.sub(r'वीडियो\s*प्रॉम्प्ट\s*:.*', ' ', clean_hindi)  # Remove video prompt label
+        clean_hindi = re.sub(r'[A-Za-z]{5,}', ' ', clean_hindi)       # Remove long English words (not spoken)
+        clean_hindi = re.sub(r'[#\*\_\[\]\(\)]+', ' ', clean_hindi)    # Remove formatting chars
+        clean_hindi = re.sub(r'\s+', ' ', clean_hindi).strip()
+        
+        # Only use as narration if there's meaningful Hindi content left
+        if len(clean_hindi) > 10 and re.search(r'[\u0900-\u097F]{3,}', clean_hindi):
+            dialogues.append({
+                "speaker": "Narrator",
+                "text": clean_hindi,
+                "is_child": is_child_scene,
+                "turn": 0
+            })
 
     # 2. Clean visual prompt (remove script headers, timecodes, quotes)
     clean_visual = raw_input
@@ -216,13 +228,13 @@ def translate_and_enhance_hindi_prompt(text: str) -> str:
     p_lower = enhanced.lower()
     has_people = any(c in p_lower for c in ["child", "children", "boy", "boys", "girl", "girls", "people", "person", "man", "woman", "warrior", "student", "friend", "kittu", "raghavendra"])
 
-    # Enforce anatomical stability for faces and hands
+    # Enforce anatomical stability for faces, eyes, lips, and hands
     if has_people:
         anatomical_stabilizer = (
-            "Cinematic medium portrait shot, perfectly proportioned symmetrical cute facial features, "
-            "clear bright expressive eyes, natural subtle friendly smile, steady coherent facial structure, "
-            "anatomically correct hands with exactly five distinct fingers, gentle natural posture, "
-            "85mm prime lens photography, soft natural daylight illumination, 8K resolution masterpiece"
+            "Cinematic medium portrait shot, perfectly proportioned symmetrical facial features, "
+            "steady centered pupils with fixed eye gaze, natural well-defined lip contour with subtle natural mouth motion, "
+            "anatomically correct hands with exactly five distinct steady fingers, resting natural posture without warping, "
+            "85mm prime lens photography, soft warm natural daylight illumination, 8K resolution masterpiece"
         )
         enhanced = f"{enhanced}. {anatomical_stabilizer}"
     else:
