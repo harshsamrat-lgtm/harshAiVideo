@@ -215,15 +215,15 @@ class AudioService:
         is_nature = any(k in p_lower for k in ["forest", "river", "mountain", "village", "garden", "tree", "field"])
 
         if is_no_music:
-            # Ultra-soft warm room presence so there's no dead silence
+            # Complete silence or ultra gentle ambient chord
             audio_filter = (
-                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.015,"
-                f"lowpass=f=600,highpass=f=60,"
+                f"aevalsrc='sin(2*PI*220.0*t)*0.02*sin(PI*t/{dur})':d={dur}:s=48000:c=stereo,"
+                f"lowpass=f=400,"
                 f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
-                f"volume=0.08"
+                f"volume=0.05"
             )
         elif is_inspirational:
-            # Grand inspirational orchestral pad with uplifting chord progression & subtle whoosh rise
+            # Uplifting cinematic chord progression (C Major / F Major warm strings)
             audio_filter = (
                 f"aevalsrc='sin(2*PI*174.61*t)*0.10*sin(PI*t/{dur})"
                 f"+sin(2*PI*220.0*t)*0.08*sin(PI*t/{dur})"
@@ -231,38 +231,40 @@ class AudioService:
                 f"+sin(2*PI*349.23*t)*0.07*sin(PI*t/{dur})"
                 f"+sin(2*PI*523.25*t)*0.05*sin(PI*t/{dur})'"
                 f":d={dur}:s=48000:c=stereo,"
-                f"lowpass=f=3500,highpass=f=50,"
+                f"lowpass=f=2500,highpass=f=50,"
                 f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.2}:d=1.2,"
-                f"volume=0.28"
+                f"volume=0.20"
             )
         elif is_children:
-            # Warm gentle melodic atmosphere for child scenes — soft tanpura + birds
+            # Warm playful flute / chime chord for children scenes
             audio_filter = (
                 f"aevalsrc='sin(2*PI*261.6*t)*0.12*sin(PI*t/{dur})"
-                f"+sin(2*PI*329.6*t)*0.08*sin(PI*t/{dur})"
-                f"+sin(2*PI*392.0*t)*0.06*sin(PI*t/{dur})"
-                f"+sin(2*PI*523.3*t)*0.04*sin(PI*t/{dur})'"
+                f"+sin(2*PI*329.6*t)*0.09*sin(PI*t/{dur})"
+                f"+sin(2*PI*392.0*t)*0.07*sin(PI*t/{dur})"
+                f"+sin(2*PI*523.3*t)*0.05*sin(PI*t/{dur})'"
                 f":d={dur}:s=48000:c=stereo,"
-                f"lowpass=f=3000,highpass=f=80,"
-                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
-                f"volume=0.25"
+                f"lowpass=f=2200,highpass=f=80,"
+                f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
+                f"volume=0.18"
             )
         elif is_mythological:
-            # Deep epic tanpura drone with harmonic overtones
+            # Sacred deep meditative tanpura resonance
             audio_filter = (
-                f"aevalsrc='sin(2*PI*110*t)*0.15*sin(PI*t/{dur})"
-                f"+sin(2*PI*165*t)*0.10*sin(PI*t/{dur})"
-                f"+sin(2*PI*220*t)*0.08*sin(PI*t/{dur})"
-                f"+sin(2*PI*330*t)*0.05*sin(PI*t/{dur})'"
+                f"aevalsrc='sin(2*PI*130.81*t)*0.14*sin(PI*t/{dur})"
+                f"+sin(2*PI*196.00*t)*0.10*sin(PI*t/{dur})"
+                f"+sin(2*PI*261.63*t)*0.08*sin(PI*t/{dur})'"
                 f":d={dur}:s=48000:c=stereo,"
-                f"lowpass=f=2500,highpass=f=60,"
-                f"afade=t=in:st=0:d=2.0,afade=t=out:st={dur-2.0}:d=2.0,"
-                f"volume=0.30"
+                f"lowpass=f=1800,highpass=f=40,"
+                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
+                f"volume=0.20"
             )
         elif is_nature:
             # Soft rustling leaves + gentle wind + birds-like harmonics
             audio_filter = (
-                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.08,"
+                f"aevalsrc='sin(2*PI*440.0*t)*0.05*sin(PI*t/{dur})"
+                f"+sin(2*PI*659.2*t)*0.04*sin(PI*t/{dur})"
+                f"+sin(2*PI*880.0*t)*0.03*sin(PI*t/{dur})'"
+                f":d={dur}:s=48000:c=stereo,"
                 f"lowpass=f=2000,highpass=f=200,"
                 f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
                 f"volume=0.20"
@@ -279,21 +281,22 @@ class AudioService:
         elif is_rain:
             # Rich rain texture with depth
             audio_filter = (
-                f"anoisesrc=d={dur}:c=pink:r=48000:a=0.20,"
+                f"aevalsrc='sin(2*PI*100.0*t)*0.10*sin(PI*t/{dur})+(random(0)-0.5)*0.1'"
+                f":d={dur}:s=48000:c=stereo,"
                 f"lowpass=f=2500,highpass=f=200,"
                 f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
                 f"volume=0.25"
             )
         else:
-            # Default: Warm cinematic pad with gentle harmonics
+            # Default: Warm soothing ambient pad (no static/noise)
             audio_filter = (
-                f"aevalsrc='sin(2*PI*130.8*t)*0.12*sin(PI*t/{dur})"
-                f"+sin(2*PI*196.0*t)*0.08*sin(PI*t/{dur})"
+                f"aevalsrc='sin(2*PI*130.8*t)*0.10*sin(PI*t/{dur})"
+                f"+sin(2*PI*196.0*t)*0.07*sin(PI*t/{dur})"
                 f"+sin(2*PI*261.6*t)*0.05*sin(PI*t/{dur})'"
                 f":d={dur}:s=48000:c=stereo,"
-                f"lowpass=f=2500,highpass=f=60,"
-                f"afade=t=in:st=0:d=1.5,afade=t=out:st={dur-1.5}:d=1.5,"
-                f"volume=0.25"
+                f"lowpass=f=2000,highpass=f=60,"
+                f"afade=t=in:st=0:d=1.0,afade=t=out:st={dur-1.0}:d=1.0,"
+                f"volume=0.18"
             )
 
         cmd = [
